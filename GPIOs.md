@@ -19,10 +19,18 @@
 | **IR Jack 1 (RX Data)** | GPIO 27 | In | *Flexible.* Route via RMT. 10kΩ pull-up & 1kΩ series protection. |
 | **IR Jack 2 (Power/TX)** | GPIO 28 | Out | *Flexible.* Drives the high-side MOSFET/switch. |
 | **IR Jack 2 (RX Data)** | GPIO 29 | In | *Flexible.* Route via RMT. 10kΩ pull-up & 1kΩ series protection. |
+| **nRF24 MOSI** | GPIO 30 | Out | *Flexible.* Standard SPI data out. |
+| **nRF24 MISO** | GPIO 31 | In | *Flexible.* Standard SPI data in. |
+| **nRF24 SCK** | GPIO 32 | Out | *Flexible.* Standard SPI clock. |
+| **nRF24 CSN** | GPIO 33 | Out | *Flexible.* SPI Chip Select. |
+| **nRF24 CE** | GPIO 34 | Out | *Flexible.* Chip Enable (RX/TX mode control). |
+| **nRF24 IRQ** | GPIO 37 | In | *Flexible.* Interrupt pin. Active low. |
 | **Console UART TX** | U0TXD (Default) | Out | Route to onboard CP2102N / CH340. |
 | **Console UART RX** | U0RXD (Default) | In | Route to onboard CP2102N / CH340. |
 | **Reset Button** | CHIP_PU / EN | In | Standard auto-download circuitry. |
 | **Boot Button** | BOOT / Strapping | In | Standard auto-download circuitry. |
+====
+
 
 ### ESP32-C6 (Network Co-Processor)
 
