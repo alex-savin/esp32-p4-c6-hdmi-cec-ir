@@ -29,8 +29,6 @@
 | **Console UART RX** | U0RXD (Default) | In | Route to onboard CP2102N / CH340. |
 | **Reset Button** | CHIP_PU / EN | In | Standard auto-download circuitry. |
 | **Boot Button** | BOOT / Strapping | In | Standard auto-download circuitry. |
-====
-
 
 ### ESP32-C6 (Network Co-Processor)
 
