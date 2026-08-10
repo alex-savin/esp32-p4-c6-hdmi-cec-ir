@@ -25,6 +25,7 @@
 | **nRF24 CSN** | GPIO 33 | Out | *Flexible.* SPI Chip Select. |
 | **nRF24 CE** | GPIO 34 | Out | *Flexible.* Chip Enable (RX/TX mode control). |
 | **nRF24 IRQ** | GPIO 37 | In | *Flexible.* Interrupt pin. Active low. |
+| **User Action Button** | GPIO 38 | In | *Flexible.* Tactile push button to GND with 10kΩ pull-up to 3.3V. |
 | **Console UART TX** | U0TXD (Default) | Out | Route to onboard CP2102N / CH340. |
 | **Console UART RX** | U0RXD (Default) | In | Route to onboard CP2102N / CH340. |
 | **Reset Button** | CHIP_PU / EN | In | Standard auto-download circuitry. |
