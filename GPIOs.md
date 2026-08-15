@@ -58,7 +58,7 @@ the original spec
 | **Reset Button** | `CHIP_PU` (pin 103) | Net `EN`. Button + 10 kΩ `R46` *(rev 08-15: replaces `R24`, relocated)* + 1 µF `C14` **and** new 1 µF `C56` in parallel (≈2 µF — Rework 11); also driven by `Q1` of the auto-download circuit. |
 | **Boot Button / strap** | **GPIO 0** (pin 104) | Net `IO0`. Button + 10 kΩ `R25` + 1 µF `C15`; also driven by `Q2`. **Still on the wrong pin in rev 08-15 — Rework 1.** |
 | **C6 Reset Link** | **GPIO 54** (pin 98) | Net `RESET-CTR` → C6 `EN`, now with 10 kΩ pull-up `R61` *(new 08-15)*. *Firmware-locked.* |
-| **SPI flash** | `FLASH_CS/Q/WP/HOLD/CK/D` (package pins 27–33) | `U13` W25Q32JVSSIQ, 4 MB, on the dedicated flash bank at `VDD-FLASH`. Rev 08-15 adds `R51`–`R53` 10 kΩ pull-ups (CS/WP/HOLD). |
+| **SPI flash** | `FLASH_CS/Q/WP/HOLD/CK/D` (package pins 27–33) | `U13` W25Q32JVSSIQ, 4 MB, on the dedicated flash bank at `VDD-FLASH` (`C26` 100 nF at VCC). Rev 08-15 adds six 10 kΩ pull-ups `R51`–`R54`/`R56`/`R57` — referenced to `+3V3` instead of `VDD-FLASH`, see Rework 16. |
 | **Crystal** | `XTAL_P` / `XTAL_N` (100/99) | `U14` 40 MHz, 10 pF loads `C27`/`C28`. |
 | **PSRAM** | in-package | `NRW32X` = 32 MB PSRAM; `VDDO_PSRAM` LDO out, caps `C51`–`C55`. |
 | **MIPI DSI / CSI** | package pins 34–48 (not GPIO 34–48) | **Unused.** No display or camera on this board. |
