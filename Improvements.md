@@ -1,15 +1,16 @@
-# Schematic Audit — `SCH_Schematic1_2026-08-12.pdf`
+# Schematic Audit — `SCH_Schematic1_2026-08-15.pdf`
 
-Forensic audit of the project schematic (rev 2026-08-12), re-verified pin by pin
-on 2026-08-14 by rendering the drawing at 400 dpi and reading each block.
+Forensic audit of the project schematic. First performed against rev
+2026-08-12 (rendered at 400 dpi and read block by block, net labels verified by
+instance-counting the PDF text layer); **re-audited 2026-08-15 against the new
+revision**, which responded to part of the first audit. Findings below carry a
+dated **Status** line where the new revision changed them.
 
 Overall the schematic captures the dual-MCU architecture, both power rails and
-the HDMI protocol requirements correctly. The power design in particular checks
-out to the millivolt, and the HDMI connector wiring is right (see §2.1, a
-withdrawn finding). The substantive items are **three blocking wiring errors**
-(§2.2, §2.9, §2.10 — the last two found on a 2026-08-15 re-verification pass),
-a firmware mismatch since fixed (§2.3), a decoupling gap that will be expensive
-to discover after fabrication (§2.4), and a set of smaller items.
+the HDMI protocol requirements correctly. The substantive open items are **three
+blocking wiring errors** (§2.1, §2.2, §2.8), a decoupling gap that will be
+expensive to discover after fabrication (§2.4), a new regression (§2.11), and a
+set of smaller items.
 
 > **For the board designer:** [Rework.md](Rework.md) is the consolidated,
 > actionable change list. This document is the reasoning behind it.
@@ -20,6 +21,39 @@ to discover after fabrication (§2.4), and a set of smaller items.
 
 ---
 
+## 0. Revision 2026-08-15 — what changed
+
+**Fixed:** the pin-79 `EN-DCDC` net (§2.9), the recovery UART (§2.10), the
+nRF24 antenna declaration (§2.7 — "A PCB Trace antenna will be used here", full
+matching network retained). The PCA9306 question (§2.6) is closed from the TI
+datasheet: the symbol was right, and the new `R42` 200 kΩ bias completes TI's
+reference circuit.
+
+**Changed but still broken:** the IR receiver supply (§2.2) — the signal moved
+from jack pin 2 to pin 4, but the series capacitor moved with the rewire and no
+contact carries DC. Still blocking.
+
+**Redesigned:** HPD (§2.5) — the board no longer asserts HPD at all; it senses
+it through a new `R60`/`R59` divider into GPIO25. Safe levels, but the design
+intent needs confirming.
+
+**Regressed:** `D3`, the CEC ESD clamp, was deleted with no replacement —
+**§2.11**, new. Also `C56` 1 µF landed in parallel with `C14` on the reset net
+(§3.3), and the status-LED resistors went 100 Ω → 2.2 kΩ (~0.6 mA — confirm
+that is a choice).
+
+**Unchanged and still open:** boot strap on GPIO0 (§2.8), Type C connector
+wiring (§2.1), core-rail decoupling (§2.4), nRF24 `IRQ` on GPIO36 (§2.8),
+jack detect (§6), flash size, 1 kΩ RX series, debounce values, 4-pin header.
+
+**Unsolicited improvements worth keeping:** `R41` C6-BOOT pull-up, `R61` on
+`RESET-CTR`, `C58` 10 µF on the C6 rail, `R44`/`R45` IR TX base pull-downs,
+`R51`–`R53` flash pull-ups, `R43` on CP2102N `RSTb`, `C59`/`C60` feed-forward
+on the SY8089, HDMI shell EPs grounded, the auto-program truth table, and four
+M2 mounting holes.
+
+---
+
 ## 1. Subsystem-by-Subsystem Audit
 
 ### Power Infrastructure (3V3 & 1V1 Core Rails)
@@ -27,7 +61,9 @@ to discover after fabrication (§2.4), and a set of smaller items.
 * **3.3 V main buck (`U1` — SY8089AAC):** converts USB `+VBUS` (5 V) to `+3V3`.
   Feedback with $R_6 = 91\text{ k}\Omega$ and $R_7 = 20\text{ k}\Omega$ gives
   $V_{\text{OUT}} = 0.6\text{ V} \times \left(1 + \frac{91}{20}\right) = 3.33\text{ V}$.
-  2.2 µH inductor `L1`, 22 µF `C3`/`C4` out. Correct.
+  2.2 µH inductor `L1`, 22 µF `C3`/`C4` out. Correct. *(Rev 08-15 adds
+  `C59`/`C60` 22 pF feed-forward across the divider — good for transient
+  response.)*
 
 * **1.1 V P4 core buck (`U15` — TLV62569DBVR):** the ESP32-P4 needs an external
   1.1 V supply for its high-performance digital core (`VDD-HP`). Feedback with
@@ -36,10 +72,11 @@ to discover after fabrication (§2.4), and a set of smaller items.
   2.2 µH `L5`, 22 µF `C31`, 22 pF feed-forward `C30`. Correct.
   The intent is for the P4 to drive both the enable (via `EN-DCDC`) **and** the
   feedback node (via `FB-DCDC`), putting the core voltage under the chip's own
-  control — the standard ESP32-P4 arrangement. **The enable half of that is
-  broken on the drawing: see §2.9.** The feedback half is wired correctly.
-  *(An earlier revision of this bullet stated the enable was connected; that was
-  read at too low a zoom — §4.)*
+  control — the standard ESP32-P4 arrangement.
+  **Status 2026-08-15: the enable is now correctly connected** — `EN-DCDC`
+  verified at both pin 79 and `U15` (§2.9). The feedback half was always right.
+  *(An earlier revision of this bullet stated the enable was connected when it
+  was not; that was read at too low a zoom — §4.)*
 
 * **USB power entry:** `USBC1` ties `CC1`/`CC2` through independent 5.1 kΩ
   pull-downs (`R1`, `R2`) for 5 V sink advertisement. `USBLC6-2SC6` (`D1`)
@@ -66,7 +103,9 @@ to discover after fabrication (§2.4), and a set of smaller items.
 * **Clock:** `U14`, 40 MHz, 10 pF loads `C27`/`C28`.
 
 * **Memory:** 32 MB in-package PSRAM (the `NRW32X` suffix) plus `U13`
-  W25Q32JVSSIQ, 4 MB, on the dedicated flash bank.
+  W25Q32JVSSIQ, 4 MB, on the dedicated flash bank. *(Rev 08-15 adds
+  `R51`–`R53` 10 kΩ pull-ups on CS/WP/HOLD — correct practice. The 8 MB
+  upgrade, Rework 9, is still outstanding.)*
 
 * **No native USB.** `USB_DM`/`USB_DP`/`VDD_USBPHY` are unconnected; USB-C data
   reaches the CP2102N only. There is consequently **no USB-JTAG debugging and no
@@ -79,32 +118,43 @@ to discover after fabrication (§2.4), and a set of smaller items.
 * **SDIO mapping:** the C6's fixed slave pins, GPIO 18–23, to P4 GPIO 19, 18,
   14, 15, 16, 17 respectively.
 
-* **Recovery header (`B4B-XH-A`):** intended to expose `TXD0` (C6 GPIO 16),
-  `RXD0` (C6 GPIO 17), `BOOT` (GPIO 9, 10 kΩ pull-up `R41`) and GND, for
-  flashing the C6 independently. **As drawn, the UART half is not connected at
-  all — see §2.10.** `BOOT` and GND are fine.
-  **`EN` is not on the header** either, so a manual recovery flash additionally
-  needs the P4 to toggle GPIO 54 or a power cycle. Consider a fifth pin.
+* **Recovery header (`B4B-XH-A`):** exposes `TXD0` (C6 GPIO 16), `RXD0`
+  (C6 GPIO 17, net still spelled `RXT0`), `BOOT` (GPIO 9, 10 kΩ pull-up `R41`)
+  and GND, for flashing the C6 independently.
+  **Status 2026-08-15: the UART is now connected end to end** (§2.10).
+  **`EN` is still not on the header**, so a manual recovery flash needs the P4
+  to toggle GPIO 54 or a power cycle. Consider a fifth pin. Rev 08-15 also adds
+  `R61` 10 kΩ pull-up on `RESET-CTR` and `C58` 10 µF on the module's 3V3 —
+  both good.
 
 ### HDMI Interface (CEC 2.0 & E-DDC)
 
-* **Role:** all twelve TMDS pins are explicitly no-connect and the board asserts
-  HPD itself, so this is an HDMI **sink** that presents EDID and CEC without
-  carrying video — the right shape for a CEC controller.
+* **Role:** all twelve TMDS pins are explicitly no-connect. **Since rev
+  08-15 the board no longer asserts HPD — it senses it** (§2.5), which is the
+  behaviour of a CEC tap plugged into a TV or AVR rather than of a sink
+  emulating a display to a source. The distinction is now a design decision to
+  confirm, not a fact of the drawing. *(This bullet previously said "the board
+  asserts HPD itself, so this is an HDMI sink" — true of rev 08-12 only.)*
 
 * **Level translation (`U7` — PCA9306DCUR):** `SCL2`/`SDA2` face the 5 V HDMI
-  side with 4.7 kΩ pull-ups `R13`/`R12` to `HDMI-5V`, and `EN`/`VREF2` are tied
-  to `HDMI-5V`. `SCL1`/`SDA1` face the 3.3 V side with 4.7 kΩ pull-ups
-  `R14`/`R15`, and `VREF1` to `+3V3`.
+  side with 4.7 kΩ pull-ups `R13`/`R12` to `HDMI-5V`. `SCL1`/`SDA1` face the
+  3.3 V side with 4.7 kΩ pull-ups `R14`/`R15`, and `VREF1` to `+3V3`.
+  **Status 2026-08-15:** `EN`/`VREF2` now biased to `+3V3` through the new
+  `R42` 200 kΩ — TI's reference arrangement. Pinout verified against the
+  datasheet, §2.6: the symbol is correct.
   *(Previously recorded with the two sides swapped — `R12`/`R13` are the 5 V
   pull-ups, `R14`/`R15` the 3.3 V ones.)*
 
 * **CEC physical layer:** 27 kΩ pull-up `R11` to `+3V3`, `D2` BAT54 Schottky in
-  series, `D3` AZ5123-01F ESD clamp. Matches what the `hdmi_cec` component
-  documents as required. See §2.1 for where it lands on the connector.
+  series. Matches what the `hdmi_cec` component documents as required.
+  **Status 2026-08-15: the `D3` AZ5123-01F ESD clamp was deleted — see §2.11,
+  a regression.** See §2.1 for where CEC lands on the connector.
 
-* **Hot Plug Detect:** divider `R16` 10 kΩ / `R17` 6.8 kΩ from `HDMI-5V`, `D5`
-  PESD3V3L1BA ESD clamp, `D4` AZC199-04S array shared with SDA/SCL. See §2.5.
+* **Hot Plug Detect:** redesigned in rev 08-15 — sensing divider `R60` 5.1 kΩ /
+  `R59` 10 kΩ from `HDMI-HPD` to GND, tap `HDMI-HPD-ESP` → GPIO25. `D4`
+  AZC199-04S array (shared with SDA/SCL/+5 V) still clamps the connector side;
+  the old `R16`/`R17` assert-divider and the `D5` PESD clamp are gone. See
+  §2.5.
 
 ### nRF24L01+ 2.4 GHz Transceiver (`U12`)
 
@@ -135,11 +185,15 @@ to discover after fabrication (§2.4), and a set of smaller items.
 ### Switches & User LEDs
 
 * **Tactile buttons:** `EN` (reset), `BOOT` (GPIO 0) and `FSW` (**GPIO 41**),
-  each with a 10 kΩ pull-up and a 1 µF debounce capacitor.
+  each with a 10 kΩ pull-up and a 1 µF debounce capacitor. Rev 08-15 renames
+  the `EN` pull-up `R24` → `R46` (relocated to the auto-program block) and adds
+  `C56` 1 µF in parallel with `C14` on `EN` — see §3.3.
   *(Previously recorded as GPIO 38 for `FSW`; GPIO 38 is the console UART RX.)*
 
-* **Status LEDs:** blue on GPIO 20, green on GPIO 21, both active high through
-  100 Ω (`R27`, `R28`).
+* **Status LEDs:** blue on GPIO 20, green on GPIO 21, both active high.
+  Rev 08-15 changes the resistors 100 Ω (`R27`/`R28`) → **2.2 kΩ**
+  (`R48`/`R49`), i.e. ~0.6 mA drive — visible on modern 0805 parts but dim;
+  flagged in Rework 16 to confirm it is intentional.
 
 ---
 
@@ -188,20 +242,33 @@ to GND for EMI, even though no TMDS signal is used.
 **And annotate the sheet with the connector family.** Nothing on the drawing
 says Type A or Type C, which is precisely how this finding went wrong twice.
 
-### 2.2 `C9` / `C10` are wired in series, not as shunts — **[confirmed]**
+**Status 2026-08-15: still open.** The connector is still `HDMI-519` with Type
+C mapping (re-verified pin by pin: 13 = DDC/CEC Ground → GND, 14 = CEC,
+17 = Utility NC). One piece of progress: the shell EP pads (20–23) are now
+grounded — keep that through the swap.
 
-In both IR receive circuits, the 100 nF capacitor sits **in series between
-`+3V3` and jack pin 4**, with wire segments above and below its plates. It is
-not a decoupling capacitor to ground.
+### 2.2 The IR receiver has no DC supply — **[confirmed, blocking — survived a rework]**
 
-Jack pin 3 is GND and pin 2 is the signal (10 kΩ pull-up `R19`/`R22`), so if
-pin 4 is meant to carry VCC to the IR receiver module, **the receiver has no DC
-supply and will not power up**. The pin-3 GND wire crosses pin 4's net without a
-junction, so pin 4 is not grounded either — it is genuinely floating behind a
-capacitor.
+**As of rev 2026-08-12:** the 100 nF capacitor sat in series between `+3V3`
+and jack pin 4; pin 2 was the signal (10 kΩ pull-up `R19`/`R22`), pin 3 GND.
+Pin 4 — the receiver's supply — floated behind a capacitor.
 
-**Action:** re-wire pin 4 to `+3V3` and place `C9`/`C10` from `+3V3` to GND as
-the intended decoupling capacitor.
+**Status 2026-08-15: re-wired, and still broken.** The revision moved the
+signal (`RX_IR_JACK_x` + pull-up) from pin 2 to **pin 4**, kept pin 3 on GND,
+and connected **pin 2 to `+3V3` through the same series 100 nF** (`C9`/`C10`,
+verified at 600 dpi on both zones — no junction between the capacitor's bottom
+plate and any DC net). The defect moved to the other contact: a three-wire IR
+receiver (VCC/GND/OUT) still has **no contact that carries DC power**, in
+either zone. No pull-up parasitic can substitute — a TSOP-style receiver draws
+0.4–1.5 mA.
+
+**Action:** wire jack pin 2 **directly to `+3V3`** and hang `C9`/`C10` from
+that node **to GND**. Three contacts: pin 2 = VCC, pin 3 = GND, pin 4 = signal
+with pull-up. Then verify against the jack datasheet (BOM §4) that the plug's
+tip/ring/sleeve land on those pins in that order.
+
+*(Kept from 08-15: `R44`/`R45` 10 kΩ base pull-downs on the TX drivers — the
+IR LEDs no longer fire while the P4's GPIOs float during boot.)*
 
 ### 2.3 Firmware targets the wrong CEC GPIO — **[confirmed]**
 
@@ -234,46 +301,64 @@ notoriously hard to diagnose after fabrication.
 at the pin in layout) and add a 10 µF bulk capacitor local to the P4. Espressif's
 ESP32-P4 hardware design guidelines give the reference arrangement.
 
-### 2.5 HPD is asserted below the HDMI minimum — **[confirmed]**
+### 2.5 HPD — redesigned in rev 2026-08-15; levels now safe, intent needs confirming — **[confirmed, decision]**
 
-$5\text{ V} \times \frac{6.8}{10 + 6.8} = 2.02\text{ V}$. HDMI requires a source
-to see **≥ 2.4 V** on HPD. 2.02 V is below that, and it is also below a
-comfortable $V_{IH}$ for a 3.3 V GPIO ($0.7 \times 3.3 = 2.31\text{ V}$), so
-GPIO 25 may not read it reliably either.
+**As of rev 2026-08-12** the board *asserted* HPD from `HDMI-5V` through an
+`R16` 10 kΩ / `R17` 6.8 kΩ divider — at 2.02 V, below the 2.4 V a source must
+see, and marginal for the GPIO sharing the node.
 
-The previous audit recorded this as "≈2.02 V for safe input to GPIO 25" — safe
-for the pin, but the same node is the HPD line the source has to detect, and
-that is the constraint that binds.
+**Status 2026-08-15: that circuit is gone, replaced by a sensing divider.**
+`HDMI-HPD` → `R60` 5.1 kΩ → tap `HDMI-HPD-ESP` (GPIO25, package pin 53) →
+`R59` 10 kΩ → GND. A 5 V HPD arrives at the GPIO as
+$5\text{ V} \times \frac{10}{15.1} = 3.31\text{ V}$ — inside the P4's
+tolerance, so `D5`'s deletion is acceptable here (`D4` still clamps the
+connector side; the divider bounds the GPIO node).
 
-**Action:** re-proportion for roughly 2.7–3.0 V — e.g. `R16` 4.7 kΩ / `R17`
-6.8 kΩ gives 2.96 V, still inside the P4's tolerance with `D5` clamping.
+**What was lost:** the board can no longer assert HPD at all — the divider is a
+15.1 kΩ pull-*down*, and no path from `HDMI-5V` to `HDMI-HPD` remains
+(`HDMI-5V`'s instance count dropped accordingly). The two use cases now differ:
 
-### 2.6 PCA9306 pin 1 / pin 2 assignment — **[verify]**
+* **Plugged into a TV or AVR input** (board acts as a source): the sink asserts
+  HPD; sensing it is correct. The new circuit is complete for this — and CEC
+  works regardless of HPD.
+* **Plugged into a source's output** (board emulates a display): the source
+  waits for HPD ≥ 2.4 V that this board can no longer produce; most sources
+  will not talk — CEC included — until it appears.
 
-The `U7` symbol places `GND` on pin 1 and `VREF1` on pin 2. TI's PCA9306
-datasheet has these the other way round. If the symbol is wrong, the board ties
-**`VREF1` to ground and `GND` to +3V3** — the translator would not conduct, and
-the 3.3 V rail would be shorted through the part's ground pin.
+**Action:** confirm which use the product intends and annotate the sheet. If
+source-side use is wanted, add a firmware-switchable assert path (transistor
+pull to `HDMI-5V`, ≥ 2.4 V under the 15.1 kΩ divider load) alongside the
+sensing divider. Rework 7.
 
-I could not confirm the datasheet pinout from here, and unlike §2.1 there is no
-internal evidence in the drawing either way. Given that the HDMI connector
-symbol on the same sheet *is* mislabelled, it is worth ten minutes.
+### 2.6 PCA9306 pin 1 / pin 2 assignment — **[CLOSED 2026-08-15 — symbol is correct]**
 
-**Action:** check `U7`'s pin 1/2 against the TI datasheet for the DCU package.
+The `U7` symbol places `GND` on pin 1 and `VREF1` on pin 2, and the earlier
+audit suspected TI's datasheet had them the other way round.
 
-### 2.7 The nRF24 antenna port goes nowhere — **[confirmed]**
+**Checked against TI's datasheet (SCPS113, Pin Functions table) on
+2026-08-15:** GND = 1, VREF1 = 2, SCL1 = 3, SDA1 = 4, SDA2 = 5, SCL2 = 6,
+VREF2 = 7, EN = 8 — the symbol matches on every pin. The suspicion was wrong;
+recorded in §4.
 
-The RF chain `ANT1`/`ANT2` → `L2`/`L3`/`L4` → `C22` ends at a net labelled
-`50Ohm` with **nothing attached** — no U.FL/IPEX connector, no chip antenna, no
-antenna component of any kind on the sheet. The matching network terminates in
-an open net label.
+Rev 08-15 also added `R42` 200 kΩ biasing `EN`/`VREF2` to `+3V3`, which is
+exactly TI's reference circuit. `U7` is now correct in full — nothing left to
+do.
 
-If the intent is a PCB trace antenna defined only in layout, that needs to be
-stated on the schematic and the trace needs a designed impedance and keep-out;
-if it is a connector or chip antenna, the part is simply missing.
+### 2.7 The nRF24 antenna — **[RESOLVED 2026-08-15 on the schematic]**
 
-**Action:** decide the antenna and put it on the schematic — or resolve §5
-first, since that may delete the question.
+As of rev 2026-08-12 the RF chain ended at a net labelled `50Ohm` with nothing
+attached and no statement of intent.
+
+**Status 2026-08-15: the sheet now reads "A PCB Trace antenna will be used
+here"** at the 50 Ω port, behind the unchanged matching network
+(`L2`/`L3`/`L4`, `C20`–`C23`, now with a 1 pF `C23` shunt at the port). That
+is exactly what the item asked for — the intent is on the drawing and will
+reproduce.
+
+**Hand-off to layout:** the trace must be designed at 50 Ω with a ground
+keep-out (Nordic's quarter-wave meander from nAN400-03 is the usual
+reference), and its placement should maximise distance from the C6's antenna
+(§5 finding 5, BOM §2). Re-open this only if the layout omits that.
 
 ### 2.8 The P4 cannot enter serial download mode — **[confirmed, blocking]**
 
@@ -313,7 +398,13 @@ with no way to flash the application processor at all.
 
 None of this costs a component. All of it is impossible after fabrication.
 
-### 2.9 The core regulator's enable is on the wrong net — **[confirmed, blocking — board is dead as drawn]**
+**Status 2026-08-15: unchanged — still open, still blocking.** Net `IO0` is
+still on pin 104 (GPIO0); GPIO35 (pin 66) is still unrouted; nRF24 `IRQ`/`CE`
+are still on GPIO36/GPIO34, with GPIO39/40 (pins 80/81) still free. The
+revision added a printed DTR/RTS truth table for the auto-download circuit —
+correct, and unaffected by the pin move.
+
+### 2.9 The core regulator's enable is on the wrong net — **[FIXED 2026-08-15]**
 
 Found 2026-08-15, by counting net-label instances in the PDF text layer rather
 than reading them by eye. A connected net's label appears at two or more
@@ -340,7 +431,13 @@ failures disappear together.
 was read at 1× zoom, where `EN` and a clipped `EN-DCDC` are indistinguishable.
 Recorded in §4.)*
 
-### 2.10 The C6 recovery UART is not connected — **[confirmed, blocking for its purpose]**
+**Status 2026-08-15: FIXED.** `EN-DCDC` now counts two instances — pin 79 and
+`U15` pin 1 — and `EN` dropped from nine to eight, exactly the one label that
+moved. Net `EN` verified to contain `CHIP_PU` (103), the button, `C14`, `Q1`
+and the new pull-up `R46` (relocated replacement for `R24`). Nothing else to
+do.
+
+### 2.10 The C6 recovery UART is not connected — **[FIXED 2026-08-15]**
 
 Same instance-counting method. The recovery header's pin 1 carries label
 `TXD0` and pin 2 carries `RXT0`; **neither string appears anywhere else on the
@@ -359,6 +456,30 @@ carries no labels.
 
 **Fix: add net labels `TXD0` and `RXD0` to module pins 31 and 30, and relabel
 header pin 2 from `RXT0` to `RXD0`.** Three labels.
+
+**Status 2026-08-15: FIXED functionally.** `TXD0` and `RXT0` each now count
+two instances — header and module pin — so both directions connect. The
+designer connected the net under the typo'd name rather than renaming it;
+`RXT0` → `RXD0` is now purely cosmetic and lives in Rework 16.
+
+### 2.11 CEC lost its ESD clamp — **[confirmed, NEW in rev 2026-08-15]**
+
+`D3` (AZ5123-01F, the dedicated CEC ESD clamp present in rev 2026-08-12) was
+**deleted in this revision with no replacement**. `D4`'s four-channel array
+clamps `HDMI-SDA`, `HDMI-SCL`, `HDMI-5V` and `HDMI-HPD` — CEC is not among
+its channels. What remains on the CEC net is the 27 kΩ pull-up `R11` and the
+`D2` BAT54 rail clamp; neither is rated for ESD strikes.
+
+CEC is the line this product exists for: hot-plugged, user-facing, and
+electrically shared with every device on the HDMI tree. It is also wired more
+or less directly to a P4 GPIO. An 8 kV contact discharge through an HDMI cable
+shield-to-CEC fault is a real field event, and the failure it causes (a dead
+GPIO on a soldered-down BGA) is not reworkable.
+
+**Action:** restore a low-capacitance TVS on CEC at the connector. The removed
+AZ5123-01F was suitable; any ≤ 5 V working-voltage, < 10 pF unidirectional
+clamp works. If the deletion was deliberate — e.g. a plan to move CEC behind a
+buffer — record that on the sheet instead. Rework 19.
 
 ---
 
@@ -384,6 +505,9 @@ header pin 2 from `RXT0` to `RXD0`.** Three labels.
    pull-ups, giving $\tau = 10\text{ ms}$ — sluggish for rapid presses, and on
    `EN`/`IO0` it fights the auto-download circuit's timing. Drop them to
    **100 nF** ($\tau = 1\text{ ms}$).
+   **Rev 2026-08-15 made this slightly worse:** new `C56` 1 µF sits in
+   parallel with `C14` on the `EN` net (~2 µF, τ ≈ 20 ms on reset). Keep one
+   capacitor per net and make it 100 nF.
 
 4. **CP2102N supply configuration — [verify].** `VREGIN` (pin 7) is on `+VBUS`
    while `VDD` (pin 6) is on the externally regulated `+3V3`. That runs the
@@ -435,6 +559,8 @@ have been fixed above:
 | --- | --- |
 | §1: "the P4 drives both EN (via EN-DCDC) and the feedback node" | The enable label is `EN`, not `EN-DCDC` — the connection does not exist. §2.9. Read at too low a zoom; net-label claims now verified by instance-counting the PDF text layer. |
 | §3.6: `RXT0` "cosmetic typo" | The recovery UART is entirely disconnected — §2.10. The typo was real but immaterial. |
+| §2.6: "TI's PCA9306 datasheet has these the other way round" | **The datasheet agrees with the symbol** (GND = 1, VREF1 = 2 in the DCU package) — checked against TI SCPS113 on 2026-08-15. The suspicion, not the schematic, was wrong. |
+| §1 HDMI role: "the board asserts HPD itself, so this is an HDMI sink" | True only of rev 2026-08-12. Rev 08-15 removed the assert path entirely; the board now senses HPD — §2.5. |
 
 ### Correction to the 2026-08-14 audit itself
 
@@ -449,7 +575,9 @@ have prevented it** — a worthwhile annotation for the next revision.
 
 New findings not present in the previous revision: §2.2, §2.3, §2.4, §2.6, §2.7,
 §3.4, §3.5, §3.7, §3.8, §5, and the "no native USB" note in §1. Found on the
-2026-08-15 re-verification pass: **§2.9 and §2.10**.
+2026-08-15 re-verification pass: **§2.9 and §2.10**. Found auditing rev
+2026-08-15 itself: **§2.11** (CEC clamp deleted), the §2.2 re-work that
+preserved the defect, and the §2.5 redesign.
 
 ---
 
