@@ -3,7 +3,7 @@
 Against `SCH_Schematic1_2026-08-15.pdf`. First compiled 2026-08-14 against the
 2026-08-12 revision; **re-audited 2026-08-15 against the new revision**, which
 resolved five items and introduced one new one. Item numbers are stable across
-revisions — 17–19 are numbered out of sequence deliberately so older references
+revisions — 17–20 are numbered out of sequence deliberately so older references
 stay valid.
 
 Everything still open must be resolved **before fabrication**. Each item states
@@ -40,6 +40,7 @@ improvements that are worth keeping (see the credits list at the bottom).
 | 14 | Verify the 3.5 mm jack datasheet | 🔵 Check | ❌ Open — and item 8 requires a *switched* jack anyway |
 | 15 | Decide the C6 antenna variant | 🔵 Decide | ❌ Open |
 | 16 | Annotate + tidy the sheet | ⚪ Housekeeping | 🟡 Partial — see item |
+| 20 | **NEW:** replace the CP2102N with native **USB-Serial-JTAG** | 🟢 Decided 2026-08-15 | To implement — adds USB flashing **and JTAG debugging**, deletes 8 parts |
 
 ---
 
@@ -77,6 +78,55 @@ VREF2 = 7, EN = 8** — exactly what the symbol shows. The audit's suspicion was
 wrong; recorded in Improvements §4. Rev 2026-08-15 additionally added `R42`
 200 kΩ from `EN`/`VREF2` to `+3V3`, which is TI's reference biasing. `U7` is
 now correct in full.
+
+---
+
+## 🟢 Decided design changes
+
+### 20. Replace the CP2102N with the P4's native USB-Serial-JTAG
+
+*Decided 2026-08-15. Fixes the audit's "no USB-JTAG debugging and no USB DFU"
+finding (Improvements §1) and deletes the CP2102N along with its §3.4 supply
+oddity.*
+
+The ESP32-P4 has a **USB-Serial-JTAG controller in ROM** on **GPIO24 (D−) /
+GPIO25 (D+), package pins 52/53** — the same block the ESP32-P4-Function-EV
+board uses as its debug port. One cable then provides: flashing on a blank or
+bricked chip (it is ROM), the serial console, and **full JTAG debugging**
+(OpenOCD + gdb) with no external probe. The CP2102N becomes redundant.
+
+GPIO24/25 currently carry HDMI DDC SCL and the HPD sense tap, so those two
+nets move to free pins. All changes:
+
+1. **USB-C data** (through the existing `D1` USBLC6, which stays where it is)
+   → **GPIO25 = D+, GPIO24 = D−**. Route as a 90 Ω differential pair, keep it
+   short. *Verify the D+/D− assignment against the datasheet pin table before
+   layout.*
+2. Move `SCL` (PCA9306 `SCL1` side, `R14` pull-up follows the net) from
+   GPIO24 → **GPIO46 (pin 88)**. I2C routes through the GPIO matrix; any free
+   non-strap pin works.
+3. Move `HDMI-HPD-ESP` (the `R60`/`R59` divider tap, item 7) from GPIO25 →
+   **GPIO47 (pin 89)**.
+4. **Delete:** `U6` CP2102N, `R8`/`R9` (VBUS sense), `R43` (RSTb), `Q1`/`Q2`
+   with `R5`/`R10` (auto-program — esptool triggers download over
+   USB-Serial-JTAG natively), and `C56` (which also resolves the
+   double-capacitor half of item 11). **Keep** `R46`/`C14` on `EN`, both
+   buttons, and `R25`/`C15` on the boot-strap net.
+5. **Connect `VDD_USBPHY` (pin 51) → `+3V3`** with 100 nF — it floats today.
+   Bring `USB_DM`/`USB_DP` (pins 49/50) to **test pads**: that preserves the
+   OTG HS port (ROM DFU, future TinyUSB device/host) at zero cost. *(Decision
+   2026-08-15: pads only, no second connector.)*
+6. Optional but cheap: a 3-pad header on GPIO37/38 (UART0 TX/RX) + GND for
+   last-resort ROM logs; otherwise GPIO37/38 become free.
+
+**Interaction with item 1 — the GPIO35 strap fix stays mandatory.**
+USB-Serial-JTAG enters download mode by software command, which covers the
+normal case; the strap + `BOOT` button is the only door left if firmware
+wedges the USB block or reassigns the pins. After both changes: button = last
+resort, USB = everything else.
+
+*Firmware follows:* `board_pins.h` (SCL, HPD) and the sdkconfig console
+options change in lockstep **when the schematic revision lands**, not before.
 
 ---
 
@@ -231,8 +281,8 @@ Do it together with the item-3 rewire.
 
 *Improvements §3.3. Regressed slightly in 08-15:* `C14`/`C15`/`C16` are still
 1 µF, and new `C56` 1 µF sits in parallel with `C14` on `EN`, so the reset RC
-is now ~20 ms. **Change:** `C14`–`C16` → 100 nF, and drop either `C14` or
-`C56` (one cap per net).
+is now ~20 ms. **Change:** `C14`–`C16` → 100 nF. (`C56` is already deleted by
+item 20, which resolves the parallel-capacitor half.)
 
 ### 12. No `EN` on the C6 recovery header
 
@@ -273,9 +323,8 @@ mounting holes added ✓. Still to do:
   a finding to be raised, withdrawn and re-raised (Improvements §2.1).
 * Rename net `RXT0` → `RXD0` (header pin 2 and C6 module pin 30). Cosmetic
   since the 08-15 fix, but it will mislead the next reader.
-* `CP2102N` `VREGIN` on `+VBUS` while `VDD` is on `+3V3` — still not a
-  datasheet configuration; consider tying `VREGIN` to `VDD`. *(§3.4.)*
-  *(08-15 added `R43` 1 kΩ on `RSTb` — fine.)*
+* ~~`CP2102N` `VREGIN` configuration~~ — **superseded by item 20**, which
+  deletes the part.
 * **Check LED brightness:** `R48`/`R49` changed 100 Ω → 2.2 kΩ, so the status
   LEDs now run at ~0.6 mA. Modern 0805s are visible at that, but confirm it is
   a choice, not a typo — 470 Ω–1 kΩ is the usual compromise.
@@ -296,6 +345,11 @@ mounting holes added ✓. Still to do:
 | RX jack pin 2 (both zones) | series `C9`/`C10` to 3V3 | **direct to `+3V3`**, cap to GND | 3 |
 | *new* — CEC TVS | — | clamp at connector | 19 |
 | *new* — 4 × jack detect | — | GPIO 42, 43, 44, 45 | 8 |
+| USB-C `D+`/`D−` | CP2102N | **GPIO25 / GPIO24** (pins 53/52) | 20 |
+| `SCL` (PCA9306 3.3 V side) | GPIO24 / pin 52 | **GPIO46 / pin 88** | 20 |
+| `HDMI-HPD-ESP` (divider tap) | GPIO25 / pin 53 | **GPIO47 / pin 89** | 20 |
+| `VDD_USBPHY` (pin 51) | floating | **`+3V3`** + 100 nF | 20 |
+| `USB_DM`/`USB_DP` (pins 49/50) | floating | **test pads** (OTG/DFU provision) | 20 |
 
 ## Part changes still outstanding
 
@@ -311,6 +365,8 @@ mounting holes added ✓. Still to do:
 | *new* | — | 2 × 1 kΩ (IR RX series) | 10 |
 | *new* | — | up to 4 × 10 kΩ + 4 × 1 kΩ (jack detect) | 8 |
 | `U12` | — | **genuine Nordic silicon only** — BOM §7 | — |
+| `U6`, `Q1`, `Q2`, `R5`, `R8`–`R10`, `R43`, `C56` | CP2102N + auto-program | **deleted** — replaced by USB-Serial-JTAG | 20 |
+| *new* | — | 100 nF on `VDD_USBPHY`; 2 test pads (`USB_DM`/`DP`); optional 3-pad UART0 header | 20 |
 
 ## Improvements added in rev 2026-08-15 — keep all of these
 
@@ -345,3 +401,4 @@ mounting holes added ✓. Still to do:
 - [x] 17 — Pin-79 net renamed `EN-DCDC` *(2026-08-15 — verified both sides)*
 - [x] 18 — Recovery UART connected end to end *(2026-08-15 — `RXT0` name still to tidy)*
 - [ ] 19 — CEC TVS restored
+- [ ] 20 — USB-Serial-JTAG on the USB-C (GPIO24/25), CP2102N + auto-program deleted, SCL → GPIO46, HPD → GPIO47, `VDD_USBPHY` powered, OTG test pads
