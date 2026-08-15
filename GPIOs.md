@@ -1,9 +1,10 @@
 # GPIO Assignment
 
-Reconciled against `board/electronic-schema/SCH_Schematic1_2026-08-12.pdf`
-(rev 2026-08-12) on 2026-08-14. Every row below was read off the drawing pin by
-pin; the **Schematic** column is what the board actually does, and disagreements
-with the original specification are called out in **Status**.
+Reconciled against `board/electronic-schema/SCH_Schematic1_2026-08-15.pdf`
+(rev 2026-08-15) on 2026-08-15; first reconciled against rev 2026-08-12 on
+2026-08-14. Every row below was read off the drawing pin by pin; the
+**Schematic** column is what the board actually does, and disagreements with
+the original specification are called out in **Status**.
 
 > **For the board designer:** [Rework.md](Rework.md) consolidates every
 > pre-fabrication change.
@@ -24,16 +25,16 @@ the original spec
 | **SDIO DAT3** | GPIO 17 | GPIO 17 | In/Out | ✓ | *Firmware-locked.* 51 kΩ pull-up `R34`. |
 | **SDIO CLK** | GPIO 18 | GPIO 18 | Out | ✓ | *Firmware-locked.* 51 kΩ pull-up `R35` (present, not required). Length match to data lines. |
 | **SDIO CMD** | GPIO 19 | GPIO 19 | In/Out | ✓ | *Firmware-locked.* 51 kΩ pull-up `R36`. |
-| **Status LED (Blue)** | GPIO 20 | GPIO 20 | Out | ✓ | Active **high**. 100 Ω `R27` → `YLED0805B` → GND. |
-| **Status LED (Green)** | GPIO 21 | GPIO 21 | Out | ✓ | Active **high**. 100 Ω `R28` → `YLED0805YG` → GND. |
-| **HDMI CEC** | GPIO 22 | GPIO 22 | In/Out | ! | Open-drain. 27 kΩ pull-up `R11`, `D2` BAT54 series, `D3` AZ5123 ESD. Firmware fixed 2026-08-14 (`board_pins.h`). The **connector-side** pad moves when the Type A part lands — Improvements §2.1. |
-| **HDMI DDC SDA** | GPIO 23 | GPIO 23 | In/Out | ✓ | 3.3 V side of `U7` PCA9306. 4.7 kΩ pull-up `R15`. |
+| **Status LED (Blue)** | GPIO 20 | GPIO 20 | Out | ✓ | Active **high**. 2.2 kΩ `R48` → `YLED0805B` → GND. *(Rev 08-15: was 100 Ω `R27` — now ~0.6 mA, dim; flagged in Rework 16.)* |
+| **Status LED (Green)** | GPIO 21 | GPIO 21 | Out | ✓ | Active **high**. 2.2 kΩ `R49` → `YLED0805YG` → GND. *(Same change.)* |
+| **HDMI CEC** | GPIO 22 | GPIO 22 | In/Out | ! | Open-drain. 27 kΩ pull-up `R11`, `D2` BAT54 series. **Rev 08-15 deleted the `D3` ESD clamp — Improvements §2.11, Rework 19.** The **connector-side** pad moves when the Type A part lands — Improvements §2.1. |
+| **HDMI DDC SDA** | GPIO 23 | GPIO 23 | In/Out | ✓ | 3.3 V side of `U7` PCA9306. 4.7 kΩ pull-up `R15`. *(Rev 08-15: `U7` biasing completed with `R42` 200 kΩ; pinout verified correct — Improvements §2.6.)* |
 | **HDMI DDC SCL** | GPIO 24 | GPIO 24 | In/Out | ✓ | 3.3 V side of `U7` PCA9306. 4.7 kΩ pull-up `R14`. Open-drain, not push-pull. |
-| **HDMI HPD** | GPIO 25 | GPIO 25 | In/Out | ! | **Not** level-shifted — sits directly on the `R16`/`R17` divider off `HDMI-5V`. See Improvements §2.5. |
-| **IR Jack 1 — TX** | GPIO 26 | GPIO 26 | Out | ! | Drives a **low-side NPN** (`Q3` S8050) via 470 Ω `R20`, not a high-side switch. Emitter LED fed from `+VBUS` through 33 Ω `R18`. |
-| **IR Jack 1 — RX** | GPIO 27 | GPIO 27 | In | ! | 10 kΩ pull-up `R19`. **No 1 kΩ series resistor fitted**; `C9` is miswired — see Improvements §2.2 and §3.2. |
-| **IR Jack 2 — TX** | GPIO 28 | GPIO 28 | Out | ! | As Jack 1: `Q4`, `R23` 470 Ω, `R21` 33 Ω. |
-| **IR Jack 2 — RX** | GPIO 29 | GPIO 29 | In | ! | As Jack 1: `R22` 10 kΩ, `C10` miswired. |
+| **HDMI HPD** | GPIO 25 | GPIO 25 | In | ! | **Redesigned in rev 08-15:** net `HDMI-HPD-ESP`, the tap of `R60` 5.1 kΩ / `R59` 10 kΩ from `HDMI-HPD` — 3.31 V at 5 V HPD, sense-only. The board can no longer *assert* HPD; see Improvements §2.5, Rework 7. |
+| **IR Jack 1 — TX** | GPIO 26 | GPIO 26 | Out | ! | Drives a **low-side NPN** (`Q3` S8050) via 470 Ω `R20`; `R44` 10 kΩ base pull-down *(new 08-15 — LED off during boot)*. Emitter LED fed from `+VBUS` through 33 Ω `R18` on jack pin 4 *(was pin 2)*. |
+| **IR Jack 1 — RX** | GPIO 27 | GPIO 27 | In | ! | 10 kΩ pull-up `R19`, signal now on jack pin 4 *(was 2)*. **No 1 kΩ series resistor**; receiver still has **no DC supply** — `C9` still in series, now on pin 2. Improvements §2.2, §3.2. |
+| **IR Jack 2 — TX** | GPIO 28 | GPIO 28 | Out | ! | As Jack 1: `Q4`, `R23` 470 Ω, `R45` 10 kΩ *(new)*, `R21` 33 Ω. |
+| **IR Jack 2 — RX** | GPIO 29 | GPIO 29 | In | ! | As Jack 1: `R22` 10 kΩ, `C10` still in series. |
 | **nRF24 MOSI** | GPIO 30 | GPIO 30 | Out | ✓ | `U12` pin 4. |
 | **nRF24 MISO** | GPIO 31 | GPIO 31 | In | ✓ | `U12` pin 5. |
 | **nRF24 SCK** | GPIO 32 | GPIO 32 | Out | ✓ | `U12` pin 3. |
@@ -43,21 +44,21 @@ the original spec
 | **Console UART TX** | U0TXD | **GPIO 37** | Out | ✓ | P4 default U0TXD → `CP2102N` pin 25 `RXD`. |
 | **Console UART RX** | U0RXD | **GPIO 38** | In | ✓ | P4 default U0RXD ← `CP2102N` pin 26 `TXD`. |
 | **User Action Button (FSW)** | ~~GPIO 38~~ | **GPIO 41** | In | ✗ | Active low to GND, 10 kΩ pull-up `R26`, 1 µF `C16`. GPIO 38 is the console UART RX — the spec collided with it. |
-| **Core DC-DC enable** | — | `EN_DCDC` (pin 79) | Out | ! | **Miswired: the net label is `EN` — the reset net — not `EN-DCDC`, so `U15`'s enable floats and the board is dead as drawn. Improvements §2.9, Rework 17.** |
+| **Core DC-DC enable** | — | `EN_DCDC` (pin 79) | Out | ✓ | **Fixed in rev 08-15** — net `EN-DCDC` now reaches `U15`'s enable, verified at both ends. Improvements §2.9, Rework 17. |
 | **Core DC-DC feedback** | — | `FB_DCDC` (pin 78) | Analog | + | Not in the original spec. Ties into the `R39`/`R40` divider so the P4 can trim `VDD-HP` at runtime. |
-| **IR zone 1 TX jack detect** | — | **GPIO 42** (pin 83) | In | + | **New, see Improvements §3.7.** Jack insertion-detect contact. |
-| **IR zone 1 RX jack detect** | — | **GPIO 43** (pin 84) | In | + | **New.** The one that actually matters — a receiver cannot otherwise be detected at all. |
-| **IR zone 2 TX jack detect** | — | **GPIO 44** (pin 86) | In | + | **New.** |
-| **IR zone 2 RX jack detect** | — | **GPIO 45** (pin 87) | In | + | **New.** |
+| **IR zone 1 TX jack detect** | — | **GPIO 42** (pin 83) | In | + | **Reserved, still unrouted in rev 08-15** — Improvements §6, Rework 8. |
+| **IR zone 1 RX jack detect** | — | **GPIO 43** (pin 84) | In | + | **Reserved, still unrouted.** The one that actually matters — a receiver cannot otherwise be detected at all. |
+| **IR zone 2 TX jack detect** | — | **GPIO 44** (pin 86) | In | + | **Reserved, still unrouted.** *(Pin 85 between them is `VDD_IO_5`, hence the skip.)* |
+| **IR zone 2 RX jack detect** | — | **GPIO 45** (pin 87) | In | + | **Reserved, still unrouted.** |
 
 #### Strapping, dedicated and unused pins
 
 | Feature | Pin | Notes |
 | --- | --- | --- |
-| **Reset Button** | `CHIP_PU` (pin 103) | Net `EN`. Button + 10 kΩ `R24` + 1 µF `C14`; also driven by `Q1` of the auto-download circuit. |
-| **Boot Button / strap** | **GPIO 0** (pin 104) | Net `IO0`. Button + 10 kΩ `R25` + 1 µF `C15`; also driven by `Q2`. |
-| **C6 Reset Link** | **GPIO 54** (pin 98) | Net `RESET-CTR` → C6 `EN`. *Firmware-locked.* |
-| **SPI flash** | `FLASH_CS/Q/WP/HOLD/CK/D` (package pins 27–33) | `U13` W25Q32JVSSIQ, 4 MB, on the dedicated flash bank at `VDD-FLASH`. |
+| **Reset Button** | `CHIP_PU` (pin 103) | Net `EN`. Button + 10 kΩ `R46` *(rev 08-15: replaces `R24`, relocated)* + 1 µF `C14` **and** new 1 µF `C56` in parallel (≈2 µF — Rework 11); also driven by `Q1` of the auto-download circuit. |
+| **Boot Button / strap** | **GPIO 0** (pin 104) | Net `IO0`. Button + 10 kΩ `R25` + 1 µF `C15`; also driven by `Q2`. **Still on the wrong pin in rev 08-15 — Rework 1.** |
+| **C6 Reset Link** | **GPIO 54** (pin 98) | Net `RESET-CTR` → C6 `EN`, now with 10 kΩ pull-up `R61` *(new 08-15)*. *Firmware-locked.* |
+| **SPI flash** | `FLASH_CS/Q/WP/HOLD/CK/D` (package pins 27–33) | `U13` W25Q32JVSSIQ, 4 MB, on the dedicated flash bank at `VDD-FLASH`. Rev 08-15 adds `R51`–`R53` 10 kΩ pull-ups (CS/WP/HOLD). |
 | **Crystal** | `XTAL_P` / `XTAL_N` (100/99) | `U14` 40 MHz, 10 pF loads `C27`/`C28`. |
 | **PSRAM** | in-package | `NRW32X` = 32 MB PSRAM; `VDDO_PSRAM` LDO out, caps `C51`–`C55`. |
 | **MIPI DSI / CSI** | package pins 34–48 (not GPIO 34–48) | **Unused.** No display or camera on this board. |
@@ -103,19 +104,37 @@ recovery requirement; none of them are a design choice.*
 | **SDIO DAT2** | GPIO 22 (mod. pin 28) | In/Out | ✓ | ↔ P4 GPIO 16. |
 | **SDIO DAT3** | GPIO 23 (mod. pin 29) | In/Out | ✓ | ↔ P4 GPIO 17. |
 | **Main Reset** | `EN` (mod. pin 8) | In | ✓ | Net `RESET-CTR`, driven by P4 GPIO 54. |
-| **Recovery UART TX** | GPIO 16 (mod. pin 31) | Out | ✗ | **Not connected.** The module pin has no net label; the header's `TXD0` label joins nothing. Improvements §2.10, Rework 18. |
-| **Recovery UART RX** | GPIO 17 (mod. pin 30) | In | ✗ | **Not connected**, same defect — plus the header side is spelled `RXT0`. Improvements §2.10, Rework 18. |
-| **Recovery Boot** | GPIO 9 (mod. pin 23) | In | ✓ | Net `BOOT`, 10 kΩ pull-up `R41`. To header pin 4. |
+| **Recovery UART TX** | GPIO 16 (mod. pin 31) | Out | ✓ | **Connected in rev 08-15** — net `TXD0` end to end. Improvements §2.10. |
+| **Recovery UART RX** | GPIO 17 (mod. pin 30) | In | ✓ | **Connected in rev 08-15** — as net `RXT0` (the typo survives as a working net name; Rework 16). |
+| **Recovery Boot** | GPIO 9 (mod. pin 23) | In | ✓ | Net `BOOT`, 10 kΩ pull-up `R41` *(new 08-15)*. To header pin 4. |
 
-**Recovery header** (`B4B-XH-A(LF)(SN)`, 4-pin JST-XH): 1 = `TXD0`, 2 = `RXD0`,
-3 = GND, 4 = `BOOT` — **but as drawn only pins 3 and 4 actually connect**
-(Improvements §2.10). There is also **no `EN` pin on the header** — resetting
-the C6 during a manual recovery flash depends on the P4 driving GPIO 54, or on
-power cycling the board.
+**Recovery header** (`B4B-XH-A(LF)(SN)`, 4-pin JST-XH): 1 = `TXD0`, 2 = `RXT0`
+(functional; rename to `RXD0` pending), 3 = GND, 4 = `BOOT` — **all four
+connect as of rev 08-15**. There is still **no `EN` pin on the header**
+(Rework 12) — resetting the C6 during a manual recovery flash depends on the
+P4 driving GPIO 54, or on power cycling the board.
 
 ---
 
-### Changes made in this revision
+### Changes in schematic rev 2026-08-15
+
+Re-reconciled 2026-08-15. GPIO **numbers** are unchanged; circuits behind six
+of them changed:
+
+1. **`EN_DCDC` (pin 79) is fixed** — the board-killing net-label error is gone.
+2. **C6 recovery UART (GPIO 16/17) now connects** to the header.
+3. **HPD (GPIO 25)** moved to a sense-only divider net `HDMI-HPD-ESP`; the
+   board can no longer assert HPD (Improvements §2.5).
+4. **CEC (GPIO 22) lost its ESD clamp** — `D3` deleted, Rework 19.
+5. **IR RX (GPIO 27/29)** re-wired but still unpowered at the jack
+   (Improvements §2.2); TX gained base pull-downs `R44`/`R45`.
+6. **LEDs (GPIO 20/21)** now behind 2.2 kΩ instead of 100 Ω.
+
+Still wrong in rev 08-15: the boot strap (`IO0` on GPIO0 instead of GPIO35)
+and nRF24 `IRQ`/`CE` on strapping pins GPIO36/34 — the strapping-pin warning
+above stands unchanged.
+
+### Changes made in the 2026-08-14 revision of this document
 
 Three of the original assignments were wrong and have been corrected against the
 schematic:
