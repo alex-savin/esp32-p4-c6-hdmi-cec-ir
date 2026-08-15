@@ -1,109 +1,636 @@
-Here is a detailed forensic schematic audit of the project file (`SCH_Schematic1_2026-08-12_2.pdf`).
+# Schematic Audit — `SCH_Schematic1_2026-08-12.pdf`
 
-Overall, the schematic is well-designed and captures the complex dual-MCU architecture, power rails, and HDMI protocol requirements. However, there is one major structural divergence in the **External Infrared (IR) section** regarding the number and type of 3.5mm jacks, along with a few minor component recommendations.
+Forensic audit of the project schematic (rev 2026-08-12), re-verified pin by pin
+on 2026-08-14 by rendering the drawing at 400 dpi and reading each block.
 
----
+Overall the schematic captures the dual-MCU architecture, both power rails and
+the HDMI protocol requirements correctly. The power design in particular checks
+out to the millivolt, and the HDMI connector wiring is right (see §2.1, a
+withdrawn finding). The substantive items are **three blocking wiring errors**
+(§2.2, §2.9, §2.10 — the last two found on a 2026-08-15 re-verification pass),
+a firmware mismatch since fixed (§2.3), a decoupling gap that will be expensive
+to discover after fabrication (§2.4), and a set of smaller items.
 
-### 1. Subsystem-by-Subsystem Audit
+> **For the board designer:** [Rework.md](Rework.md) is the consolidated,
+> actionable change list. This document is the reasoning behind it.
 
-#### **Power Infrastructure (3V3 & 1V1 Core Rails)**
-
-* **3.3V Main Buck Regulator (`U1` - SY8089AAC):** Converts USB `+VBUS` (5V) to `+3V3`. The feedback network with $R_6 = 91\text{ k}\Omega$ and $R_7 = 20\text{ k}\Omega$ yields an output of $V_{\text{OUT}} = 0.6\text{ V} \times \left(1 + \frac{91\text{ k}\Omega}{20\text{ k}\Omega}\right) = 3.33\text{ V}$, which accurately matches standard 3.3V rail tolerances.
-
-
-* **1.1V ESP32-P4 Core Regulator (`U15` - TLV62569DBVR):** The ESP32-P4 requires an external 1.1V core voltage for its high-performance digital core (`VDD-HP`). The feedback network with $R_{39} = 8.2\text{ k}\Omega$ and $R_{40} = 10\text{ k}\Omega$ yields $V_{\text{OUT}} = 0.6\text{ V} \times \left(1 + \frac{8.2\text{ k}\Omega}{10\text{ k}\Omega}\right) = 1.092\text{ V} \approx 1.1\text{ V}$, providing the necessary power to the `VDD-HP` pins.
-
-
-* **USB Power Entry:** The `USBC1` connector properly ties `CC1` and `CC2` through independent 5.1kΩ pull-down resistors (`R1`, `R2`) to GND for standard 5V USB power negotiation. `USBLC6-2SC6` (`D1`) provides ESD protection on the USB data lines.
-
-
-
-#### **Main Processor (`U3` - ESP32-P4NRW32X)**
-
-* **SDIO Interconnect:** The 4-bit high-speed SDIO bus is correctly assigned to GPIOs 14–19 (`DAT0`–`DAT3`, `CLK`, `CMD`). All five mandatory 51kΩ pull-up resistors (`R31`–`R35`) are present on `CMD` and `DAT0`–`DAT3`.
-
-
-* **C6 Reset Line:** GPIO 54 (`RESET-CTR`) directly controls the ESP32-C6 `EN` pin to manage hardware resets and OTA state transitions.
-
-
-* **Decoupling:** Decoupling capacitors (`C32`–`C43`, 100nF each) are distributed across the `+3V3` and `VDD-HP` power pins.
-
-
-* **Clock:** `U14` provides the external 40MHz crystal reference with 10pF load capacitors (`C27`, `C28`).
-
-
-
-#### **Wireless Co-Processor (`U5` - ESP32-C6)**
-
-* **SDIO Mapping:** Bus pins map directly to C6 GPIOs 18–23.
-
-
-* **C6 Recovery Header (`RECOVER-HEADER`):** A 4-pin JST connector (`B4B-XH-A`) exposes `TXD0` (GPIO 16), `RXT0` (GPIO 17), `BOOT` (GPIO 9 with 10kΩ pull-up `R41`), and `GND` for recovering or flashing the C6 independently.
-
-
-
-#### **HDMI Interface (CEC 2.0 & E-DDC)**
-
-* **Level Translation (`U7` - PCA9306DCUR):** Converts 5V HDMI DDC lines (`SDA`/`SCL`) down to 3.3V logic (`HDMI-SDA`/`HDMI-SCL`). Low side is powered by `+3V3` with 4.7kΩ pull-ups (`R12`, `R13`), and high side is powered by `HDMI-5V` with 4.7kΩ pull-ups (`R14`, `R15`).
-
-
-* **CEC Physical Layer:** CEC line includes the required BAT54 Schottky diode (`D2`) in series and a 27kΩ pull-up resistor (`R11`) to `+3V3`.
-
-
-* **Hot Plug Detect (HPD):** Stepped down from 5V using a voltage divider ($R_{16} = 10\text{ k}\Omega$, $R_{17} = 6.8\text{ k}\Omega$) yielding $\approx 2.02\text{ V}$ for safe input to ESP32-P4 GPIO 25 (`HDMI-HPD`). ESD protection is provided by `D5` (`PESD3V3L1BA`).
-
-
-
-#### **nRF24L01+ 2.4GHz Transceiver (`U12`)**
-
-* **Control Lines:** Mapped to GPIOs 30–34 (`MOSI`, `MISO`, `SCK`, `CSN`, `CE`) and GPIO 37 (`IRQ`).
-
-
-* **RF Matching Network:** Complete 50Ω matching balun network consisting of inductors `L2` (2.7nH), `L3` (8.2nH), `L4` (3.9nH) and capacitors `C20`–`C23` connected to a 16MHz crystal (`X1`).
-
-
-
-#### **CP2102N USB-to-UART Bridge (`U6`)**
-
-* **Leakage Prevention:** Includes the Silicon Labs recommended resistor divider ($R_8 = 21\text{ k}\Omega$, $R_9 = 47.5\text{ k}\Omega$) on `VREGIN`/`VBUS` to prevent back-powering when USB is connected while 3.3V power is off.
-
-
-* **Auto-Download Circuit:** Standard dual NPN transistor setup (`Q1`, `Q2` S8050) driven by `DTR`/`RTS` to control `EN` and `IO0` (`BOOT`).
-
-
-
-#### **Switches & User LEDs**
-
-* **Tactile Buttons:** Includes `EN` (Reset), `BOOT`, and the extra `FSW` (User Action button connected to GPIO 38). Each button has a 10kΩ pull-up resistor and a 1µF debounce capacitor.
-
-
-* **Status LEDs:** Blue LED (`GPIO 20`) and Green LED (`GPIO 21`) with 100Ω current-limiting resistors (`R27`, `R28`).
-
-
+> **Confidence.** Findings marked **[confirmed]** were read directly off the
+> drawing and are not in doubt. Findings marked **[verify]** depend on a
+> datasheet or footprint I could not inspect, and state exactly what to check.
 
 ---
 
-### 2. Discrepancies & Recommendations for the Designer
+## 1. Subsystem-by-Subsystem Audit
 
-1. **IR Interface Architecture (Major Structural Difference):**
-* **What was specified:** Two 3.5mm TRS jacks configured as **Universal/Flexi IR ports**, where each jack uses a high-side switch on the Tip (for firmware-selectable TX power or RX VCC) and a Ring input with series protection.
+### Power Infrastructure (3V3 & 1V1 Core Rails)
 
+* **3.3 V main buck (`U1` — SY8089AAC):** converts USB `+VBUS` (5 V) to `+3V3`.
+  Feedback with $R_6 = 91\text{ k}\Omega$ and $R_7 = 20\text{ k}\Omega$ gives
+  $V_{\text{OUT}} = 0.6\text{ V} \times \left(1 + \frac{91}{20}\right) = 3.33\text{ V}$.
+  2.2 µH inductor `L1`, 22 µF `C3`/`C4` out. Correct.
 
-* **What is in the schematic:** The designer implemented **four separate 3.5mm jacks** (`U8`, `U9` for Zone 1 and `U10`, `U11` for Zone 2). `U8` and `U10` are dedicated TX Blaster jacks driven by NPN transistors (`Q3`, `Q4`), while `U9` and `U11` are dedicated RX Receiver jacks.
+* **1.1 V P4 core buck (`U15` — TLV62569DBVR):** the ESP32-P4 needs an external
+  1.1 V supply for its high-performance digital core (`VDD-HP`). Feedback with
+  $R_{39} = 8.2\text{ k}\Omega$ and $R_{40} = 10\text{ k}\Omega$ gives
+  $V_{\text{OUT}} = 0.6\text{ V} \times \left(1 + \frac{8.2}{10}\right) = 1.092\text{ V}$.
+  2.2 µH `L5`, 22 µF `C31`, 22 pF feed-forward `C30`. Correct.
+  The intent is for the P4 to drive both the enable (via `EN-DCDC`) **and** the
+  feedback node (via `FB-DCDC`), putting the core voltage under the chip's own
+  control — the standard ESP32-P4 arrangement. **The enable half of that is
+  broken on the drawing: see §2.9.** The feedback half is wired correctly.
+  *(An earlier revision of this bullet stated the enable was connected; that was
+  read at too low a zoom — §4.)*
 
+* **USB power entry:** `USBC1` ties `CC1`/`CC2` through independent 5.1 kΩ
+  pull-downs (`R1`, `R2`) for 5 V sink advertisement. `USBLC6-2SC6` (`D1`)
+  protects the data lines.
 
-* **Action Item:** Clarify with the designer whether you prefer the current **4 dedicated single-purpose jacks** or want them converted to **2 Universal TRS jacks** to save board space.
+### Main Processor (`U3` — ESP32-P4NRW32X)
 
+* **SDIO interconnect:** 4-bit bus on GPIO 14–19. **Six** 51 kΩ pull-ups are
+  fitted, `R31`–`R36` — one each on `DAT0`–`DAT3`, `CMD` **and `CLK`**. Only
+  five are required; the one on `CLK` is harmless.
+  *(Previously recorded as "five, `R31`–`R35`" — miscounted.)*
 
-2. **Missing Series Protection Resistors on IR RX Lines:**
-* In the current RX circuit (`U9`/`U11`), the RX data line connects directly from the jack to the ESP32-P4 GPIO with only a 10kΩ pull-up (`R19`/`R22`) and 100nF filtering capacitor (`C9`/`C10`).
+* **C6 reset line:** GPIO 54 (`RESET-CTR`) drives the C6 `EN` pin directly, for
+  hardware reset and OTA state transitions.
 
+* **Decoupling:** twelve 100 nF capacitors, `C32`–`C43`. **All twelve sit in one
+  bank across `+3V3` and GND** — they are not distributed per power pin, and the
+  1.1 V `VDD-HP` rail gets none of them. See §2.4.
+  *(Previously recorded as "distributed across the `+3V3` and `VDD-HP` power
+  pins" — that is not what the drawing shows.)*
+  Rail-local caps that are present: `VDD-PSRAM` `C51`–`C55`, `VDD-FLASH`
+  `C49`/`C50`.
 
-* **Action Item:** Ask the designer to insert a **1kΩ series protection resistor** between the jack's RX node and the ESP32-P4 GPIO pin to protect against static discharges or momentary shorts when plugging/unplugging cables.
+* **Clock:** `U14`, 40 MHz, 10 pF loads `C27`/`C28`.
 
+* **Memory:** 32 MB in-package PSRAM (the `NRW32X` suffix) plus `U13`
+  W25Q32JVSSIQ, 4 MB, on the dedicated flash bank.
 
-3. **Debounce Capacitor Sizing on Buttons:**
-* The tactile switches (`EN`, `BOOT`, `FSW`) use 1µF capacitors (`C14`, `C15`, `C16`) alongside 10kΩ pull-up resistors. This produces a time constant of $\tau = 10\text{ k}\Omega \times 1\text{ }\mu\text{F} = 10\text{ ms}$, which can feel sluggish during rapid button presses or auto-flashing.
+* **No native USB.** `USB_DM`/`USB_DP`/`VDD_USBPHY` are unconnected; USB-C data
+  reaches the CP2102N only. There is consequently **no USB-JTAG debugging and no
+  USB DFU** — serial over the CP2102N is the only flash and debug path. Worth a
+  conscious decision rather than an accident, given the P4's USB-Serial-JTAG is
+  normally the primary bring-up tool.
 
+### Wireless Co-Processor (`U5` — ESP32-C6)
 
-* **Action Item:** Recommend lowering `C14`, `C15`, and `C16` to **100nF** ($\tau = 1\text{ ms}$) for cleaner response times.
+* **SDIO mapping:** the C6's fixed slave pins, GPIO 18–23, to P4 GPIO 19, 18,
+  14, 15, 16, 17 respectively.
+
+* **Recovery header (`B4B-XH-A`):** intended to expose `TXD0` (C6 GPIO 16),
+  `RXD0` (C6 GPIO 17), `BOOT` (GPIO 9, 10 kΩ pull-up `R41`) and GND, for
+  flashing the C6 independently. **As drawn, the UART half is not connected at
+  all — see §2.10.** `BOOT` and GND are fine.
+  **`EN` is not on the header** either, so a manual recovery flash additionally
+  needs the P4 to toggle GPIO 54 or a power cycle. Consider a fifth pin.
+
+### HDMI Interface (CEC 2.0 & E-DDC)
+
+* **Role:** all twelve TMDS pins are explicitly no-connect and the board asserts
+  HPD itself, so this is an HDMI **sink** that presents EDID and CEC without
+  carrying video — the right shape for a CEC controller.
+
+* **Level translation (`U7` — PCA9306DCUR):** `SCL2`/`SDA2` face the 5 V HDMI
+  side with 4.7 kΩ pull-ups `R13`/`R12` to `HDMI-5V`, and `EN`/`VREF2` are tied
+  to `HDMI-5V`. `SCL1`/`SDA1` face the 3.3 V side with 4.7 kΩ pull-ups
+  `R14`/`R15`, and `VREF1` to `+3V3`.
+  *(Previously recorded with the two sides swapped — `R12`/`R13` are the 5 V
+  pull-ups, `R14`/`R15` the 3.3 V ones.)*
+
+* **CEC physical layer:** 27 kΩ pull-up `R11` to `+3V3`, `D2` BAT54 Schottky in
+  series, `D3` AZ5123-01F ESD clamp. Matches what the `hdmi_cec` component
+  documents as required. See §2.1 for where it lands on the connector.
+
+* **Hot Plug Detect:** divider `R16` 10 kΩ / `R17` 6.8 kΩ from `HDMI-5V`, `D5`
+  PESD3V3L1BA ESD clamp, `D4` AZC199-04S array shared with SDA/SCL. See §2.5.
+
+### nRF24L01+ 2.4 GHz Transceiver (`U12`)
+
+* **Control lines:** GPIO 30–34 (`MOSI`, `MISO`, `SCK`, `CSN`, `CE`) and
+  **GPIO 36** (`IRQ`).
+  *(Previously recorded as GPIO 37 for `IRQ`; GPIO 37 is the console UART TX.)*
+
+* **RF matching network:** `L2` 2.7 nH, `L3` 8.2 nH, `L4` 3.9 nH with `C20`
+  2.2 nF, `C21` 4.7 pF, `C22` 1.5 pF, `C23` 1 pF into a 50 Ω port. `R29` 22 kΩ
+  on `IREF`, `C19` 33 nF on `DVDD`, 16 MHz crystal `X1` with 22 pF `C24`/`C25`
+  and 1 MΩ `R30`. All standard for the bare `NRF24L01P-R` die.
+
+* **The antenna is not specified** — see §2.7 — and the choice of this part at
+  all is worth revisiting before layout: see §5.
+
+### CP2102N USB-to-UART Bridge (`U6`)
+
+* **VBUS sensing:** the `R8` 21 kΩ / `R9` 47.5 kΩ divider feeds the **`VBUS`
+  sense pin (8)** only, at 3.47 V, limiting leakage per the on-sheet note.
+  `VREGIN` (pin 7) is tied straight to `+VBUS`.
+  *(Previously described as a divider "on `VREGIN`/`VBUS`" — only pin 8 is
+  divided.)*
+
+* **Auto-download circuit:** standard cross-coupled NPN pair (`Q1`, `Q2` S8050,
+  10 kΩ `R10`/`R5`) driven by `DTR`/`RTS` onto `EN` and `IO0`, with the truth
+  table printed on the sheet. Correct.
+
+### Switches & User LEDs
+
+* **Tactile buttons:** `EN` (reset), `BOOT` (GPIO 0) and `FSW` (**GPIO 41**),
+  each with a 10 kΩ pull-up and a 1 µF debounce capacitor.
+  *(Previously recorded as GPIO 38 for `FSW`; GPIO 38 is the console UART RX.)*
+
+* **Status LEDs:** blue on GPIO 20, green on GPIO 21, both active high through
+  100 Ω (`R27`, `R28`).
+
+---
+
+## 2. Blocking and High-Priority Findings
+
+### 2.1 Connector changed to full-size Type A — pins 13/14/17 must be remapped — **[confirmed, blocking]**
+
+This finding has a history worth keeping, because the conclusion flipped twice.
+
+**First raised** as "the symbol's pin numbers don't match the HDMI standard,
+likely blocking". **Then withdrawn**: `HDMI-519` (`C136421`) turned out to be a
+**Mini-HDMI Type C** receptacle, and Type C is not Type A renumbered — the spec
+reassigns the pins, moving DDC/CEC Ground to 13, CEC to 14 and Reserved to 17,
+and swapping each pair's positive signal with its shield. The symbol matched
+Type C exactly. The schematic was right; the audit had compared it against the
+wrong connector family.
+
+**Now live again, in a different form.** The decision on 2026-08-14 is
+**full-size Type A only** (§3.8), and the current wiring is Type C wiring. As
+drawn, on a Type A footprint, the CEC signal would land on pad 14
+(Utility/HEAC+) and the real CEC pad 13 would be tied to ground — the original
+failure, arrived at from the opposite direction.
+
+Required remap when the connector is swapped:
+
+| Net | Now (Type C) | Must become (Type A) |
+| --- | --- | --- |
+| `CEC` | pin 14 | **pin 13** |
+| GND | pin 13 | **pin 17** |
+| *(no-connect)* | pin 17 | **pin 14** — Utility/HEAC+ |
+| `HDMI-SCL` | pin 15 | pin 15 — unchanged |
+| `HDMI-SDA` | pin 16 | pin 16 — unchanged |
+| `HDMI-5V` | pin 18 | pin 18 — unchanged |
+| `HDMI-HPD` | pin 19 | pin 19 — unchanged |
+| TMDS pairs | shields odd, signals even | **signals odd, shields even** — all no-connect either way |
+
+**Action:** replace `AUDIO1` with a Type A symbol **and** footprint, then
+re-verify these seven nets. The four signals that carry traffic (SCL, SDA, +5 V,
+HPD) keep their numbers, so it is only 13/14/17 plus the connector body that
+move — but getting 13/17 backwards is silent and fatal.
+
+**While you are in there:** the TMDS shields are currently all no-connect. On a
+Type A part it is worth tying the four shield pins (2, 5, 8, 11) and the shell
+to GND for EMI, even though no TMDS signal is used.
+
+**And annotate the sheet with the connector family.** Nothing on the drawing
+says Type A or Type C, which is precisely how this finding went wrong twice.
+
+### 2.2 `C9` / `C10` are wired in series, not as shunts — **[confirmed]**
+
+In both IR receive circuits, the 100 nF capacitor sits **in series between
+`+3V3` and jack pin 4**, with wire segments above and below its plates. It is
+not a decoupling capacitor to ground.
+
+Jack pin 3 is GND and pin 2 is the signal (10 kΩ pull-up `R19`/`R22`), so if
+pin 4 is meant to carry VCC to the IR receiver module, **the receiver has no DC
+supply and will not power up**. The pin-3 GND wire crosses pin 4's net without a
+junction, so pin 4 is not grounded either — it is genuinely floating behind a
+capacitor.
+
+**Action:** re-wire pin 4 to `+3V3` and place `C9`/`C10` from `+3V3` to GND as
+the intended decoupling capacitor.
+
+### 2.3 Firmware targets the wrong CEC GPIO — **[confirmed]**
+
+`esp32-p4-firmware/main/main.cpp` sets `CEC_GPIO = GPIO_NUM_14`. On this board
+**GPIO 14 is SDIO `DAT0`** to the co-processor. Driving it open-drain, as the
+`hdmi_cec` component does, would break the WiFi link.
+
+The CEC net is on **GPIO 22**. The source comment already says "Adjust to match
+the board", so this is a known placeholder — but nothing in the repository
+records the correct number, and the mistake is silent (the radio simply stops
+working, which reads as a driver bug).
+
+**Status: FIXED, 2026-08-14.** `main.cpp` now takes the pin from
+`board::HDMI_CEC` in the new `esp32-p4-firmware/main/board_pins.h`, which
+carries the whole P4 map — including the SDIO pins, labelled so nothing claims
+them by accident. Builds clean against ESP-IDF v6.0.2.
+
+### 2.4 No local decoupling on the 1.1 V core rail — **[confirmed]**
+
+All twelve 100 nF capacitors (`C32`–`C43`) are on `+3V3`. The `VDD-HP` rail
+reaches the P4's four core pins (26, 54, 76, 91) with nothing but the
+regulator's own 22 µF `C31` at the other end of the board.
+
+A 1.1 V core rail on a 400 MHz dual-core part draws fast, large transients.
+Without local high-frequency capacitance the rail will sag at each load step,
+and the symptom — sporadic resets or PSRAM corruption under load — is
+notoriously hard to diagnose after fabrication.
+
+**Action:** move roughly half the bank to `VDD-HP` (100 nF per core pin, placed
+at the pin in layout) and add a 10 µF bulk capacitor local to the P4. Espressif's
+ESP32-P4 hardware design guidelines give the reference arrangement.
+
+### 2.5 HPD is asserted below the HDMI minimum — **[confirmed]**
+
+$5\text{ V} \times \frac{6.8}{10 + 6.8} = 2.02\text{ V}$. HDMI requires a source
+to see **≥ 2.4 V** on HPD. 2.02 V is below that, and it is also below a
+comfortable $V_{IH}$ for a 3.3 V GPIO ($0.7 \times 3.3 = 2.31\text{ V}$), so
+GPIO 25 may not read it reliably either.
+
+The previous audit recorded this as "≈2.02 V for safe input to GPIO 25" — safe
+for the pin, but the same node is the HPD line the source has to detect, and
+that is the constraint that binds.
+
+**Action:** re-proportion for roughly 2.7–3.0 V — e.g. `R16` 4.7 kΩ / `R17`
+6.8 kΩ gives 2.96 V, still inside the P4's tolerance with `D5` clamping.
+
+### 2.6 PCA9306 pin 1 / pin 2 assignment — **[verify]**
+
+The `U7` symbol places `GND` on pin 1 and `VREF1` on pin 2. TI's PCA9306
+datasheet has these the other way round. If the symbol is wrong, the board ties
+**`VREF1` to ground and `GND` to +3V3** — the translator would not conduct, and
+the 3.3 V rail would be shorted through the part's ground pin.
+
+I could not confirm the datasheet pinout from here, and unlike §2.1 there is no
+internal evidence in the drawing either way. Given that the HDMI connector
+symbol on the same sheet *is* mislabelled, it is worth ten minutes.
+
+**Action:** check `U7`'s pin 1/2 against the TI datasheet for the DCU package.
+
+### 2.7 The nRF24 antenna port goes nowhere — **[confirmed]**
+
+The RF chain `ANT1`/`ANT2` → `L2`/`L3`/`L4` → `C22` ends at a net labelled
+`50Ohm` with **nothing attached** — no U.FL/IPEX connector, no chip antenna, no
+antenna component of any kind on the sheet. The matching network terminates in
+an open net label.
+
+If the intent is a PCB trace antenna defined only in layout, that needs to be
+stated on the schematic and the trace needs a designed impedance and keep-out;
+if it is a connector or chip antenna, the part is simply missing.
+
+**Action:** decide the antenna and put it on the schematic — or resolve §5
+first, since that may delete the question.
+
+### 2.8 The P4 cannot enter serial download mode — **[confirmed, blocking]**
+
+The auto-download circuit and the `BOOT` button both drive **GPIO0**. That is
+the boot strap on the ESP32 and ESP32-S3. **It is not a strapping pin on the
+ESP32-P4.**
+
+On the P4 the strapping pins are GPIO 34–38, and per
+[Espressif's boot mode documentation](https://docs.espressif.com/projects/esptool/en/latest/esp32p4/advanced-topics/boot-mode-selection.html):
+*"The ESP32-P4 will enter the serial bootloader when GPIO35 is held low on
+reset."* `GPIO36` must additionally be high for that to work reliably.
+
+On this board:
+
+| Pin | Wired to | Effect |
+| --- | --- | --- |
+| **GPIO35** | *nothing* | The actual download strap is unrouted. Internally pulled high, so the chip always boots to flash. |
+| **GPIO0** | `BOOT` button + `Q2` collector | Does nothing on this chip. |
+| **GPIO36** | nRF24 `IRQ`, active low | Must be high to enter the bootloader; the radio pulls it low on any pending interrupt. |
+| **GPIO34** | nRF24 `CE` | Strapping pin driven as an output. Benign, but not free of risk. |
+
+**Consequence: there is no way to put the P4 into download mode.** Combined
+with the unconnected USB PHY (no USB-JTAG, §1), the first board would arrive
+with no way to flash the application processor at all.
+
+**Fix, all pre-fab:**
+
+1. **Move the `IO0` net from GPIO0 to GPIO35.** Both the `BOOT` button and `Q2`
+   of the auto-download circuit follow it. This is a net rename plus one pin
+   move; the transistor circuit itself is correct.
+2. **Move nRF24 `IRQ` off GPIO36** to a non-strapping pin — GPIO 39 or 40 are
+   free and adjacent. Leave GPIO36 unconnected so its internal pull holds it
+   high.
+3. **Consider moving nRF24 `CE` off GPIO34** for the same reason. Lower
+   priority: `CE` is an output we control, and it is only sampled at reset.
+4. Leave GPIO37/38 alone — console UART0 is their default function.
+
+None of this costs a component. All of it is impossible after fabrication.
+
+### 2.9 The core regulator's enable is on the wrong net — **[confirmed, blocking — board is dead as drawn]**
+
+Found 2026-08-15, by counting net-label instances in the PDF text layer rather
+than reading them by eye. A connected net's label appears at two or more
+coordinates; `FB-DCDC` does (P4 pin 78 and `U15`). **`EN-DCDC` appears exactly
+once** — at `U15`'s EN pin — and P4 pin 79 (`EN_DCDC`) carries the label
+**`EN`** instead, verified at 5× zoom: two characters, cleanly terminated,
+with `FB-DCDC` rendering in full directly beneath it.
+
+Net labels are global, so the drawing as it stands means:
+
+* **`U15`'s enable floats.** Net `EN-DCDC` has one member and no driver. TI's
+  datasheet does not permit a floating EN; whether it settles low (rail off) or
+  drifts, the 1.1 V `VDD-HP` core rail is not reliably up — **and without it
+  the P4 never boots. The board is dead on arrival.**
+* **P4 pin 79 joins the reset net.** `EN` is the reset-button net: `CHIP_PU`
+  (pin 103), `R24`, `C14`, and `Q1` of the auto-download circuit. The core
+  regulator's enable output would sit on the chip's own reset line, fighting
+  the button and `Q1` whenever either pulls it low.
+
+**Fix: rename the label at pin 79 from `EN` to `EN-DCDC`.** One label. Both
+failures disappear together.
+
+*(The audit's §1 previously described this connection as correct — the label
+was read at 1× zoom, where `EN` and a clipped `EN-DCDC` are indistinguishable.
+Recorded in §4.)*
+
+### 2.10 The C6 recovery UART is not connected — **[confirmed, blocking for its purpose]**
+
+Same instance-counting method. The recovery header's pin 1 carries label
+`TXD0` and pin 2 carries `RXT0`; **neither string appears anywhere else on the
+sheet as a net label.** The C6 module's `TXD0`/`RXD0` pins (31/30) end in short
+dangling stubs with **no labels at all** — the second `TXD0` in the text layer
+is the module's pin *name*, not a net.
+
+So the header's UART pins connect to nothing, and the module's UART pins
+connect to nothing. Recovery flashing of the C6 — the header's entire purpose —
+is impossible as drawn. `BOOT` (via `R41`) and GND are correctly connected.
+
+An earlier revision of this audit noticed only the `RXT0` spelling and filed it
+as cosmetic (§3.6). That call was wrong twice over: the typo is real, but even
+spelled correctly the net would have joined nothing, because the module side
+carries no labels.
+
+**Fix: add net labels `TXD0` and `RXD0` to module pins 31 and 30, and relabel
+header pin 2 from `RXT0` to `RXD0`.** Three labels.
+
+---
+
+## 3. Lower-Priority Recommendations
+
+1. **IR interface architecture (structural difference from the specification).**
+   * **Specified:** two 3.5 mm TRS jacks as universal/flexi IR ports, each using
+     a high-side switch on the tip (firmware-selectable TX power or RX VCC) and
+     a ring input with series protection.
+   * **In the schematic:** **four** separate jacks — `U8`/`U10` as dedicated TX
+     blasters driven by low-side NPNs (`Q3`, `Q4`), `U9`/`U11` as dedicated RX
+     receivers.
+   * **Action:** decide whether you want the current four single-purpose jacks
+     or two universal TRS jacks to save panel and board space. Note that fixing
+     §2.2 is required either way.
+
+2. **Missing series protection on the IR RX lines.** The RX node runs from the
+   jack straight to the P4 GPIO with only the 10 kΩ pull-up. Add a **1 kΩ series
+   resistor** between jack and GPIO on each zone to survive ESD and momentary
+   shorts during hot-plugging.
+
+3. **Debounce capacitor sizing.** `C14`/`C15`/`C16` are 1 µF against 10 kΩ
+   pull-ups, giving $\tau = 10\text{ ms}$ — sluggish for rapid presses, and on
+   `EN`/`IO0` it fights the auto-download circuit's timing. Drop them to
+   **100 nF** ($\tau = 1\text{ ms}$).
+
+4. **CP2102N supply configuration — [verify].** `VREGIN` (pin 7) is on `+VBUS`
+   while `VDD` (pin 6) is on the externally regulated `+3V3`. That runs the
+   bridge's internal LDO in parallel with the SY8089 buck on the same node.
+   Both derive from VBUS and both target ~3.3 V, so it will most likely work,
+   but it is not one of the power configurations the datasheet describes.
+   Consider tying `VREGIN` to `VDD` (self-powered mode) so only one regulator
+   drives the rail.
+
+5. **No `EN` on the C6 recovery header.** A manual recovery flash of the C6
+   needs a reset, and the header does not offer one. Add a fifth pin, or accept
+   the power-cycle workflow and document it.
+
+6. ~~Cosmetic: rename `RXT0` → `RXD0`.~~ **Superseded by §2.10** — the
+   spelling was the least of it; the whole recovery UART is disconnected.
+
+7. **Jack insertion detect — [SPECIFIED 2026-08-14, pre-fab].** Detection is
+   now a required feature, and the GPIOs are allocated. Full circuit below in
+   §6; pin map in [GPIOs.md](GPIOs.md).
+
+8. **Connector family — [DECIDED 2026-08-14: full-size Type A].**
+   `HDMI-519` (`C136421`) is Mini-HDMI Type C, which would have obliged every
+   user to source a Mini-HDMI-to-Type-A cable. Superseded: the board uses a
+   **full-size Type A female** receptacle. See the BOM for candidate parts and
+   §2.1 for the pin remap this forces.
+
+---
+
+## 4. Corrections to the Previous Revision of This Document
+
+For traceability, the following statements in the earlier audit were wrong and
+have been fixed above:
+
+| Was | Now |
+| --- | --- |
+| "five mandatory 51 kΩ pull-ups (`R31`–`R35`)" | Six are fitted, `R31`–`R36`, including one on `CLK` |
+| Decoupling "distributed across the `+3V3` and `VDD-HP` power pins" | All twelve are on `+3V3`; `VDD-HP` has none — §2.4 |
+| PCA9306 "low side powered by `+3V3` with pull-ups `R12`, `R13`; high side by `HDMI-5V` with `R14`, `R15`" | Reversed: `R12`/`R13` are the 5 V pull-ups, `R14`/`R15` the 3.3 V ones |
+| nRF24 `IRQ` on "GPIO 37" | GPIO 36 |
+| `FSW` "connected to GPIO 38" | GPIO 41 |
+| HPD divider "yielding ≈2.02 V for safe input" | Correct arithmetic, wrong conclusion — 2.02 V is below the HDMI 2.4 V minimum, §2.5 |
+| CP2102N divider "on `VREGIN`/`VBUS`" | Only the `VBUS` sense pin (8) is divided; `VREGIN` is on `+VBUS` directly |
+| IR RX "100 nF filtering capacitor (`C9`/`C10`)" | The capacitors are in series in the supply path, not filtering — §2.2 |
+| Filename `SCH_Schematic1_2026-08-12_2.pdf` | `SCH_Schematic1_2026-08-12.pdf` |
+
+### Corrections to the audit itself
+
+| Was (2026-08-14/15) | Now |
+| --- | --- |
+| §1: "the P4 drives both EN (via EN-DCDC) and the feedback node" | The enable label is `EN`, not `EN-DCDC` — the connection does not exist. §2.9. Read at too low a zoom; net-label claims now verified by instance-counting the PDF text layer. |
+| §3.6: `RXT0` "cosmetic typo" | The recovery UART is entirely disconnected — §2.10. The typo was real but immaterial. |
+
+### Correction to the 2026-08-14 audit itself
+
+| Was | Now |
+| --- | --- |
+| §2.1 "HDMI connector symbol pin numbers do not match the HDMI standard", raised as likely blocking | **Withdrawn.** The connector is Mini-HDMI **Type C**, whose pinout genuinely differs from Type A in exactly the way the symbol shows. The schematic was right; the audit compared it against the wrong connector family. See §2.1. |
+
+That error is worth recording rather than quietly deleting: it was found only
+because the JLCPCB part number identified the connector as Type C, which the
+schematic sheet never states. **Adding the connector family to the sheet would
+have prevented it** — a worthwhile annotation for the next revision.
+
+New findings not present in the previous revision: §2.2, §2.3, §2.4, §2.6, §2.7,
+§3.4, §3.5, §3.7, §3.8, §5, and the "no native USB" note in §1. Found on the
+2026-08-15 re-verification pass: **§2.9 and §2.10**.
+
+---
+
+## 5. Part Choice Review — nRF24L01+ (`U12`)
+
+> ## ⚠️ VERDICT REVERSED — **KEEP THE nRF24L01+**
+>
+> This section originally recommended deleting `U12`. **That recommendation is
+> withdrawn.** Logitech Harmony remotes talk to their hub over 2.4 GHz using
+> **Enhanced ShockBurst — the nRF24's own protocol**. `U12` is not speculative
+> hardware; it is the only part on the board that can receive a Harmony remote,
+> and Harmony support is now a product requirement.
+>
+> Findings 2–5 below still stand as risks to manage. Finding 1 is void and
+> finding 6 inverts into an argument *for* buying genuine silicon.
+> See [remote-control-plan.md](../../docs/remote-control-plan.md).
+
+**1. ~~Nothing uses it.~~ VOID.** Superseded: Harmony RF support requires it.
+When written, no firmware referenced `U12` and no purpose was recorded anywhere
+in the repository — which is why the part looked speculative. The lesson is
+about the documentation gap, not the part: **an unstated requirement reads as a
+mistake.** The intended function is now recorded in the plan document.
+
+**2. Nordic marks the whole nRF24 series "Not recommended for new designs"**
+and points new work at the nRF52 series instead. That is verbatim from Nordic's
+own product page, not a forum reading. Parts remain purchasable, but a new
+board spun in 2026 around an NRND radio starts its life on a countdown.
+
+**3. Counterfeits are endemic, and the schematic specifies the bare die.**
+`NRF24L01P-R` is a bare QFN20, which is exactly the format the fakes come in.
+Reported fakes are built on a 350 nm process against the genuine 250 nm, with a
+larger die, worse sensitivity and higher power draw. There is no register or
+marking that identifies them — the practical screens are a die-shot or the
+power-down current test (≈500 nA genuine against 3–4 µA fake). Sourcing through
+a Nordic-authorised distributor is the only real defence, and it is not where
+bare dies at this price usually come from.
+
+**4. A bare radio die forfeits the pre-certified-module advantage.** The C6 next
+to it is a module with an integrated antenna and existing certification. Adding
+a second, bare, intentional radiator means the finished product needs full
+FCC/CE radiated-emissions testing on its own — several thousand USD and weeks of
+schedule that the C6 alone would not have cost.
+
+**5. Coexistence.** nRF24 is 2.4 GHz GFSK sharing a band and a small PCB with
+the C6's WiFi 6 and Bluetooth LE. The ESP32 arbitrates its own WiFi/BT
+internally but knows nothing about an external radio, so there is no mechanism
+to stop the two desensing each other. Any duty cycle on the nRF24 costs WiFi
+throughput and vice versa.
+
+**6. Clone silicon will break Harmony pairing — INVERTED into a buying rule.**
+This was originally an argument against the part. It is now the strongest
+argument for buying a **genuine** one. Harmony's pairing handshake uses the
+nRF24's **ACK-payload** feature, and the widespread **Si24R1** clone shipped
+with an **inverted ACK bit** (following an error in its own datasheet). A clone
+will therefore fail to pair even though it looks like a working radio. **XN297**
+is not protocol-compatible at all.
+
+Combined with finding 3, this is a hard sourcing constraint: **buy `U12` through
+a Nordic-authorised distributor, and screen incoming parts** with the power-down
+current test (≈500 nA genuine, 3–4 µA fake) before committing a build.
+
+### Options
+
+| | Option | Consequence |
+| --- | --- | --- |
+| **A** | ~~Drop `U12`~~ | **Void.** Would delete Harmony support entirely. |
+| **B** | ~~Footprint only, DNP~~ | **Void.** Same. |
+| **C** | **Keep the bare die, source it properly** | Cheapest path that works. Requires: an antenna (§2.7), authorised sourcing, incoming inspection, and full FCC/CE radiated testing for the finished product. |
+| **D** | Swap for a pre-certified **nRF24 module** | Solves antenna + certification + counterfeit in one purchase, at higher unit cost and board area. Strong candidate if volume is low or certification budget is tight. |
+| **E** | Swap for an **nRF52 module** running ESB | Nordic's supported replacement for the NRND part; ESB in software keeps Harmony compatibility and adds headroom to decode more of the protocol later. Highest BOM cost, adds a second MCU to maintain. |
+
+**Recommendation: C for the prototype, then decide between C and D before
+volume.** Build the first boards with the bare die so the RF layout gets
+validated early — that is the risk you cannot defer. If certification cost or
+yield on the die turns out badly, D is a drop-in escape that does not change the
+firmware at all, because it is the same radio behind the same SPI interface.
+
+Findings 2 (NRND) and 5 (coexistence with the C6) remain live and unfixable by
+part choice. Manage them: NRND by keeping D/E as escape routes, coexistence by
+antenna placement — see the plan document.
+
+---
+
+## 6. IR jack insertion detect — circuit specification
+
+Added 2026-08-14. Makes `ir::Ir::connected()` return a real answer instead of
+`Presence::Unknown`. The firmware side is already written and inert until these
+pins exist.
+
+### Why nothing softer works
+
+The RX signal line carries a 10 kΩ pull-up (`R19`/`R22`). An **empty jack** sits
+high through it. A **plugged-in receiver with no remote pointed at it** also
+idles high. The two are the same voltage on the same net, so no amount of
+firmware separates them:
+
+| Attempt | Result |
+| --- | --- |
+| Read the level | High in both cases |
+| Drive low, release, time the rise | 10 kΩ into cable capacitance is ~1 µs; a receiver's push-pull output is faster but not distinguishably, and driving into it is contention |
+| Enable the internal pull-down | ~45 kΩ against an external 10 kΩ still reads high |
+| Wait for IR traffic | Proves presence, never absence |
+
+Detection has to come from the connector.
+
+### Pin allocation
+
+| Jack | Function | GPIO | Package pin |
+| --- | --- | --- | --- |
+| `U8` | Zone 1 TX (emitter) detect | **42** | 83 |
+| `U9` | Zone 1 RX (receiver) detect | **43** | 84 |
+| `U10` | Zone 2 TX (emitter) detect | **44** | 86 |
+| `U11` | Zone 2 RX (receiver) detect | **45** | 87 |
+
+All four are currently unrouted, none is a strapping pin (§2.8), and they sit on
+the same package edge as the existing IR pins. If only two can be afforded,
+**fit the RX pair (43, 45)** — an absent emitter is at least visible as "the
+device did not respond", whereas an absent receiver is silent.
+
+### Preferred: a jack with an independent switch contact
+
+Specify a 3.5 mm jack whose insertion switch is a **separate SPST contact**, not
+one normalled to the tip.
+
+```
+   3V3 ──[10k]──┬───────────────► GPIO 4x
+                │
+       jack ────┘   switch closes to GND when the jack is EMPTY
+       switch ──────────────────► GND
+```
+
+* Empty jack → switch closed → GPIO reads **LOW**
+* Plug inserted → switch open → pull-up → GPIO reads **HIGH**
+
+This matches the firmware default `ZoneConfig::detect_active_low = true`. The
+P4's internal pull-up (~45 kΩ) can carry this on its own, so the 10 kΩ is
+optional — fit it for noise immunity on a connector-facing net. Add the same
+1 kΩ series resistor recommended for the signal lines in §3.2.
+
+Identical on TX and RX jacks, which is the main reason to prefer it.
+
+### Fallback: a tip-normalled switch (e.g. plain PJ-320A)
+
+If only tip-switch jacks are available, the switch terminal is shorted to the
+tip when empty and floats when a plug is inserted. That still works on the **RX
+jacks**, with no extra parts at all:
+
+* Switch terminal → GPIO, configured input with the **internal pull-down**.
+* Empty: switch closed to tip, which `R19` pulls to 3V3 → divider with the
+  ~45 kΩ internal pull-down gives ~2.7 V → reads **HIGH**.
+* Inserted: switch open → internal pull-down → reads **LOW**.
+
+Note the polarity is **inverted** versus the preferred circuit, so set
+`ZoneConfig::detect_active_low = false` for these zones. The firmware supports
+both per zone.
+
+**This does not work on the TX jacks.** Their tip sits at `+VBUS` through the
+33 Ω `R18`/`R21`, so a closed switch would put 5 V on a 3.3 V GPIO. Either fit
+a divider (2 × 100 kΩ gives ~2.5 V) or leave the TX jacks undetected.
+
+### Alternative: current sense on the receiver's supply
+
+Worth knowing about because it detects **faults**, not just presence: put a
+small series resistor in the RX jack's VCC feed and read the drop. A receiver
+draws ~0.4–1.5 mA, so 100 Ω gives ~100 mV — enough to separate absent, present
+and shorted.
+
+Two caveats. It needs an ADC channel per zone, and **ADC1's eight inputs
+(GPIO16–23) are all already used** on this board, so it would have to come from
+ADC2 — verify that against the datasheet before committing. It also touches the
+same net as the `C9`/`C10` fix (§2.2), so if that rework is happening anyway,
+the incremental cost is one resistor.
+
+The switch-contact approach is simpler and is what the firmware expects. Treat
+this as the option to reach for only if emitter/receiver *fault* detection turns
+out to matter.
+
+### Consequence for part selection
+
+[BOM.md §4](BOM.md) already flagged that the proposed jack `C18167` needs its
+pin numbering verified. That is now a harder requirement: **the chosen jack must
+have a documented insertion-switch contact**, and the datasheet must say whether
+it is independent or normalled to the tip, because the two need opposite
+firmware polarity and different external parts.
