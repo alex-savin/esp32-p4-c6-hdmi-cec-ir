@@ -48,9 +48,9 @@ jack detect (§6), flash size, 1 kΩ RX series, debounce values, 4-pin header.
 
 **Unsolicited improvements worth keeping:** `R41` C6-BOOT pull-up, `R61` on
 `RESET-CTR`, `C58` 10 µF on the C6 rail, `R44`/`R45` IR TX base pull-downs,
-`R51`–`R53` flash pull-ups, `R43` on CP2102N `RSTb`, `C59`/`C60` feed-forward
-on the SY8089, HDMI shell EPs grounded, the auto-program truth table, and four
-M2 mounting holes.
+six flash pull-ups `R51`–`R54`/`R56`/`R57` (on the wrong rail — Rework 16),
+`R43` on CP2102N `RSTb`, `C59`/`C60` feed-forward on the SY8089, HDMI shell
+EPs grounded, the auto-program truth table, and four M2 mounting holes.
 
 ---
 
@@ -103,9 +103,12 @@ M2 mounting holes.
 * **Clock:** `U14`, 40 MHz, 10 pF loads `C27`/`C28`.
 
 * **Memory:** 32 MB in-package PSRAM (the `NRW32X` suffix) plus `U13`
-  W25Q32JVSSIQ, 4 MB, on the dedicated flash bank. *(Rev 08-15 adds
-  `R51`–`R53` 10 kΩ pull-ups on CS/WP/HOLD — correct practice. The 8 MB
-  upgrade, Rework 9, is still outstanding.)*
+  W25Q32JVSSIQ, 4 MB, on the dedicated flash bank. *(Rev 08-15 adds six 10 kΩ
+  pull-ups, `R51`–`R54`/`R56`/`R57`, on CS/DO/WP/HOLD/CLK/DI — right idea,
+  wrong rail: they reference `+3V3` while the flash's VCC is `VDD-FLASH`, the
+  P4's internal LDO output, so the flash is back-powered until that rail
+  rises. Re-reference to `VDD-FLASH` — Rework 16. The 8 MB upgrade, Rework 9,
+  is still outstanding.)*
 
 * **No native USB.** `USB_DM`/`USB_DP`/`VDD_USBPHY` are unconnected; USB-C data
   reaches the CP2102N only. There is consequently **no USB-JTAG debugging and no
