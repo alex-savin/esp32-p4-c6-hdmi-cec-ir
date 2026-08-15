@@ -112,6 +112,12 @@ M2 mounting holes.
   USB DFU** — serial over the CP2102N is the only flash and debug path. Worth a
   conscious decision rather than an accident, given the P4's USB-Serial-JTAG is
   normally the primary bring-up tool.
+  **Status 2026-08-15: DECIDED — adopt USB-Serial-JTAG, delete the CP2102N.**
+  The USB-C data pair moves to GPIO24/25 (the P4's USB-Serial-JTAG, in ROM:
+  flashing on a blank chip, console, and OpenOCD/gdb debugging over one
+  cable); DDC SCL and the HPD tap move to GPIO46/47 to free those pins;
+  `VDD_USBPHY` gets powered and the OTG HS pins go to test pads as a DFU
+  provision. Full change list in **Rework 20**. This also retires §3.4.
 
 ### Wireless Co-Processor (`U5` — ESP32-C6)
 
@@ -509,13 +515,11 @@ buffer — record that on the sheet instead. Rework 19.
    parallel with `C14` on the `EN` net (~2 µF, τ ≈ 20 ms on reset). Keep one
    capacitor per net and make it 100 nF.
 
-4. **CP2102N supply configuration — [verify].** `VREGIN` (pin 7) is on `+VBUS`
-   while `VDD` (pin 6) is on the externally regulated `+3V3`. That runs the
-   bridge's internal LDO in parallel with the SY8089 buck on the same node.
-   Both derive from VBUS and both target ~3.3 V, so it will most likely work,
-   but it is not one of the power configurations the datasheet describes.
-   Consider tying `VREGIN` to `VDD` (self-powered mode) so only one regulator
-   drives the rail.
+4. **CP2102N supply configuration — [SUPERSEDED 2026-08-15].** `VREGIN` (pin
+   7) on `+VBUS` while `VDD` (pin 6) is on `+3V3` ran the bridge's internal
+   LDO in parallel with the SY8089 buck — not a datasheet configuration.
+   Moot: the CP2102N is deleted by the USB-Serial-JTAG decision (§3.9,
+   Rework 20).
 
 5. **No `EN` on the C6 recovery header.** A manual recovery flash of the C6
    needs a reset, and the header does not offer one. Add a fifth pin, or accept
@@ -533,6 +537,17 @@ buffer — record that on the sheet instead. Rework 19.
    user to source a Mini-HDMI-to-Type-A cable. Superseded: the board uses a
    **full-size Type A female** receptacle. See the BOM for candidate parts and
    §2.1 for the pin remap this forces.
+
+9. **USB-Serial-JTAG — [DECIDED 2026-08-15: adopt, delete the CP2102N].**
+   The P4's ROM USB-Serial-JTAG on GPIO24/25 replaces the CP2102N on the
+   existing USB-C: flashing (works on a blank chip), console, and full JTAG
+   debugging over one cable — the fallback whose absence §1 flagged. DDC SCL
+   moves GPIO24 → GPIO46, the HPD tap GPIO25 → GPIO47; `U6`, `Q1`/`Q2` and
+   five resistors are deleted; `VDD_USBPHY` gets connected and the OTG HS
+   pins (49/50) go to test pads as a DFU provision. The GPIO35 strap fix
+   (§2.8) **remains mandatory** as the last-resort download entry. Complete
+   change list: **Rework 20**. Verify at layout: D+/D− assignment on
+   GPIO25/24, and whether the GPIO24/25 FS PHY is powered from `VDD_USBPHY`.
 
 ---
 
