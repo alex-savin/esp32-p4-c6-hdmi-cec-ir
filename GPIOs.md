@@ -29,8 +29,8 @@ the original spec
 | **Status LED (Green)** | GPIO 21 | GPIO 21 | Out | ✓ | Active **high**. 2.2 kΩ `R49` → `YLED0805YG` → GND. *(Same change.)* |
 | **HDMI CEC** | GPIO 22 | GPIO 22 | In/Out | ! | Open-drain. 27 kΩ pull-up `R11`, `D2` BAT54 series. **Rev 08-15 deleted the `D3` ESD clamp — Improvements §2.11, Rework 19.** The **connector-side** pad moves when the Type A part lands — Improvements §2.1. |
 | **HDMI DDC SDA** | GPIO 23 | GPIO 23 | In/Out | ✓ | 3.3 V side of `U7` PCA9306. 4.7 kΩ pull-up `R15`. *(Rev 08-15: `U7` biasing completed with `R42` 200 kΩ; pinout verified correct — Improvements §2.6.)* |
-| **HDMI DDC SCL** | GPIO 24 | GPIO 24 | In/Out | ✓ | 3.3 V side of `U7` PCA9306. 4.7 kΩ pull-up `R14`. Open-drain, not push-pull. |
-| **HDMI HPD** | GPIO 25 | GPIO 25 | In | ! | **Redesigned in rev 08-15:** net `HDMI-HPD-ESP`, the tap of `R60` 5.1 kΩ / `R59` 10 kΩ from `HDMI-HPD` — 3.31 V at 5 V HPD, sense-only. The board can no longer *assert* HPD; see Improvements §2.5, Rework 7. |
+| **HDMI DDC SCL** | GPIO 24 | GPIO 24 | In/Out | ! | 3.3 V side of `U7` PCA9306. 4.7 kΩ pull-up `R14`. **Moves to GPIO 46 per Rework 20** — GPIO 24 becomes USB-Serial-JTAG D−. |
+| **HDMI HPD** | GPIO 25 | GPIO 25 | In | ! | **Redesigned in rev 08-15:** net `HDMI-HPD-ESP`, the tap of `R60` 5.1 kΩ / `R59` 10 kΩ from `HDMI-HPD` — 3.31 V at 5 V HPD, sense-only (the board can no longer *assert* HPD; Improvements §2.5, Rework 7). **Moves to GPIO 47 per Rework 20** — GPIO 25 becomes USB-Serial-JTAG D+. |
 | **IR Jack 1 — TX** | GPIO 26 | GPIO 26 | Out | ! | Drives a **low-side NPN** (`Q3` S8050) via 470 Ω `R20`; `R44` 10 kΩ base pull-down *(new 08-15 — LED off during boot)*. Emitter LED fed from `+VBUS` through 33 Ω `R18` on jack pin 4 *(was pin 2)*. |
 | **IR Jack 1 — RX** | GPIO 27 | GPIO 27 | In | ! | 10 kΩ pull-up `R19`, signal now on jack pin 4 *(was 2)*. **No 1 kΩ series resistor**; receiver still has **no DC supply** — `C9` still in series, now on pin 2. Improvements §2.2, §3.2. |
 | **IR Jack 2 — TX** | GPIO 28 | GPIO 28 | Out | ! | As Jack 1: `Q4`, `R23` 470 Ω, `R45` 10 kΩ *(new)*, `R21` 33 Ω. |
@@ -41,8 +41,8 @@ the original spec
 | **nRF24 CSN** | GPIO 33 | GPIO 33 | Out | ✓ | `U12` pin 2. |
 | **nRF24 CE** | GPIO 34 | GPIO 34 | Out | ✓ | `U12` pin 1. |
 | **nRF24 IRQ** | ~~GPIO 37~~ | **GPIO 36** | In | ✗ | Active low, `U12` pin 6. GPIO 37 is the console UART TX — the spec collided with it. |
-| **Console UART TX** | U0TXD | **GPIO 37** | Out | ✓ | P4 default U0TXD → `CP2102N` pin 25 `RXD`. |
-| **Console UART RX** | U0RXD | **GPIO 38** | In | ✓ | P4 default U0RXD ← `CP2102N` pin 26 `TXD`. |
+| **Console UART TX** | U0TXD | **GPIO 37** | Out | ✓ | P4 default U0TXD → `CP2102N` pin 25 `RXD`. **Rework 20 deletes the CP2102N** — GPIO 37/38 become free (optional 3-pad ROM-log header). |
+| **Console UART RX** | U0RXD | **GPIO 38** | In | ✓ | P4 default U0RXD ← `CP2102N` pin 26 `TXD`. Same. |
 | **User Action Button (FSW)** | ~~GPIO 38~~ | **GPIO 41** | In | ✗ | Active low to GND, 10 kΩ pull-up `R26`, 1 µF `C16`. GPIO 38 is the console UART RX — the spec collided with it. |
 | **Core DC-DC enable** | — | `EN_DCDC` (pin 79) | Out | ✓ | **Fixed in rev 08-15** — net `EN-DCDC` now reaches `U15`'s enable, verified at both ends. Improvements §2.9, Rework 17. |
 | **Core DC-DC feedback** | — | `FB_DCDC` (pin 78) | Analog | + | Not in the original spec. Ties into the `R39`/`R40` divider so the P4 can trim `VDD-HP` at runtime. |
@@ -62,8 +62,8 @@ the original spec
 | **Crystal** | `XTAL_P` / `XTAL_N` (100/99) | `U14` 40 MHz, 10 pF loads `C27`/`C28`. |
 | **PSRAM** | in-package | `NRW32X` = 32 MB PSRAM; `VDDO_PSRAM` LDO out, caps `C51`–`C55`. |
 | **MIPI DSI / CSI** | package pins 34–48 (not GPIO 34–48) | **Unused.** No display or camera on this board. |
-| **USB 2.0 PHY** | `USB_DM`/`USB_DP`/`VDD_USBPHY` (package pins 49–51) | **Unused.** USB-C data goes to the CP2102N only — there is **no native USB, and therefore no USB-JTAG and no USB flashing** on the P4. Serial flashing over the CP2102N is the only path. |
-| **Unrouted GPIO** | 1–13, 39, 40, 46–53 | Free for expansion. **GPIO 42–45 are now claimed** by IR jack detect. |
+| **USB 2.0 PHY** | `USB_DM`/`USB_DP`/`VDD_USBPHY` (package pins 49–51) | **Unused in rev 08-15** — no USB-JTAG, no USB flashing; the CP2102N is the only path. **Rework 20 changes this:** `VDD_USBPHY` → `+3V3` + 100 nF, OTG pins 49/50 → test pads (DFU provision), and USB-Serial-JTAG arrives on GPIO 24/25. |
+| **Unrouted GPIO** | 1–13, 39, 40, 46–53 | Free for expansion. **GPIO 42–45 claimed** by IR jack detect (Rework 8); **GPIO 46/47 earmarked** for the relocated SCL/HPD (Rework 20); GPIO 39/40 reserved for nRF24 `IRQ`/`CE` (Rework 5). |
 | **⚠ Strapping pins** | **34, 35, 36, 37, 38** | See the warning below — three of these are currently misused. |
 
 ### ⚠ Strapping pins — the board currently gets these wrong
@@ -87,6 +87,11 @@ Consequence: **the P4 cannot be put into serial download mode as drawn**, and
 with the USB PHY unconnected there is no USB-JTAG fallback. See
 [Improvements.md §2.8](Improvements.md) — this is blocking and must be fixed
 before fabrication.
+
+Rework 20 (USB-Serial-JTAG on GPIO 24/25) will add a USB flash/debug path
+that works from ROM — but the GPIO35 strap fix **stays mandatory**: it is the
+only entry that survives firmware wedging the USB block or reassigning its
+pins.
 
 ---
 
