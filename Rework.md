@@ -33,7 +33,7 @@ improvements that are worth keeping (see the credits list at the bottom).
 | 6 | Local decoupling on the 1.1 V core rail | 🟠 High | ❌ Open — no caps moved to `VDD-HP` |
 | 7 | HPD level | 🟠 High | 🔁 **Redesigned — confirm the new intent** (see rewritten item) |
 | 8 | IR jack insertion detect (4 GPIOs + switched jacks) | 🟠 High | ❌ Open — GPIO 42–45 still unrouted, jacks still `PJ-320A-3P` |
-| 9 | Flash 4 MB → 8 MB | 🟡 Cheap now | ❌ Open — still `W25Q32JVSSIQ` (new CS/WP/HOLD pull-ups ✓) |
+| 9 | Flash 4 MB → 8 MB | 🟡 Cheap now | ❌ Open — still `W25Q32JVSSIQ` (six new pull-ups ✓, wrong rail — item 16) |
 | 10 | 1 kΩ series resistors on IR RX | 🟡 Cheap now | ❌ Open |
 | 11 | Debounce caps 1 µF → 100 nF | 🟡 Cheap now | ❌ Open — **worse**: `C56` 1 µF added in parallel with `C14` on `EN` |
 | 12 | 5th pin (`EN`) on the C6 recovery header | 🟡 Cheap now | ❌ Open — header still 4-pin |
@@ -269,8 +269,9 @@ detect lines can be afforded, fit the RX pair (GPIO 43, 45).
 
 *BOM §8. Unchanged — `U13` is still `W25Q32JVSSIQ`.* Swap to **W25Q64JVSSIQ**,
 same package and pinout. Two OTA slots plus the feature set make 4 MB
-survivable-with-no-headroom; 8 MB removes the question. *(08-15 added
-`R51`–`R53` 10 kΩ pull-ups on CS/WP/HOLD — keep; they apply to either part.)*
+survivable-with-no-headroom; 8 MB removes the question. *(08-15 added six
+10 kΩ pull-ups, `R51`–`R54`/`R56`/`R57`, on all six flash pins — keep, they
+apply to either part, but re-reference them to `VDD-FLASH`: see item 16.)*
 
 ### 10. Series protection on the IR RX lines
 
@@ -330,6 +331,12 @@ mounting holes added ✓. Still to do:
   a choice, not a typo — 470 Ω–1 kΩ is the usual compromise.
 * State the C6 module part number on the sheet (`U5` is a 53-pad MINI-1
   footprint but no variant is named anywhere on the drawing).
+* **Re-reference the flash pull-ups to `VDD-FLASH`.** The six new 10 kΩ
+  (`R51`–`R54`, `R56`, `R57`) pull the flash's CS/DO/WP/HOLD/CLK/DI to
+  **`+3V3`**, but `U13`'s VCC sits on `VDD-FLASH` — the P4's internal LDO
+  output, which rises after 3V3. Until it does, the flash I/O pins sit 3.3 V
+  above VCC (≈0.3 mA per pin through the 10 kΩ) — outside the usual
+  VCC + 0.4 V absolute maximum. Move the pull-up rail to `VDD-FLASH`.
 
 ---
 
@@ -374,7 +381,7 @@ mounting holes added ✓. Still to do:
 * `R42` 200 kΩ PCA9306 EN bias — TI reference circuit
 * `R41` 10 kΩ C6 BOOT pull-up · `R61` 10 kΩ on `RESET-CTR` · `C58` 10 µF on the C6 rail
 * `R44`/`R45` 10 kΩ IR TX base pull-downs (LEDs off during boot)
-* `R51`–`R53` 10 kΩ flash CS/WP/HOLD pull-ups
+* `R51`–`R54`/`R56`/`R57` 10 kΩ pull-ups on all six flash pins (wrong rail though — item 16)
 * `R43` 1 kΩ on CP2102N `RSTb` · `C59`/`C60` 22 pF feed-forward on the SY8089
 * HDMI shell EP pads grounded · auto-program truth table · 4 × M2 mounting holes
 
