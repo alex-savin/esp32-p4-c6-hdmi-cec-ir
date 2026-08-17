@@ -10,6 +10,12 @@ Everything still open must be resolved **before fabrication**. Each item states
 the change; the reasoning is in [Improvements.md](Improvements.md), referenced
 by section. Pin numbers are ESP32-P4 package pins, taken from the drawing.
 
+> **Drawing:** every open item is drawn as a corrected circuit fragment in
+> [../electronic-schema/SCH_Rework_2026-08-15.svg](../electronic-schema/SCH_Rework_2026-08-15.svg)
+> — one panel per item, plus a locator over the current sheet showing where
+> each change lands. Open it in any browser. This list stays the authority;
+> the SVG is its picture.
+
 **Where rev 2026-08-15 stands: 3 of the original 6 blocking items are fixed or
 resolved; 3 remain — and one of those (item 3) was reworked in this revision
 but is still broken.** The revision also added a set of unsolicited
